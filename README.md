@@ -36,10 +36,13 @@ fibrosis_prediction(hep)                # F0->F4 prediction
 
 ## Calibrated parameters (primary hepatocyte)
 
-Motor-clutch: nm=45, Fm=2.0, vu=110, nc=90, kon=0.5, koff0=0.1, Fb=2.0, kc=1.1, α=0.13
-Two populations: basal 37.9 µm² (CV 6%, constant) + mechanosensitive ~68.8 µm² (grows)
-τ = 35.3 ± 2.6 h · inferred lamin vs LMNA qPCR: r=0.84
-Fibrosis: F0~4, F1~7, F2~9.5, F3~13, F4~26 kPa
+- **Motor-clutch:** nm=45, Fm=2.0, vu=110, nc=90, kon=0.5, koff0=0.1, Fb=2.0, kc=1.1, α=0.13.
+
+- **Two populations:** basal 37.9 µm² (CV 6%, constant) + mechanosensitive ~68.8 µm² (grows).
+
+- **Viscoelasticity** τ = 35.3 ± 2.6 h · inferred lamin vs LMNA qPCR: r=0.84.
+
+- **Fibrosis stages:** F0~4, F1~7, F2~9.5, F3~13, F4~26 kPa.
 
 ## Notes
 
