@@ -1,12 +1,19 @@
-# Mechanogenomic virtual-cell model
+ Mechanogenomic virtual-cell model
 
-Self-contained module with the complete physical model and its calibrated parameters.
+A minimal, first-principles physical model of nuclear mechanotransduction that
+links substrate stiffness to nuclear deformation, YAP/TAZ activity, and
+fibrosis-associated transcriptional trajectories. Calibrated against nuclear
+area of primary hepatocytes on hydrogels and validated against human liver
+RNA-seq cohorts across fibrosis stages.
+
+📖 **Full documentation:** see the [project Wiki](../../wiki).
 
 ## Quick start
 
 ```bash
 pip install -r requirements.txt
-python mvirtual_cell.py          # runs the self-test / demo
+python mvirtual_cell.py          # runs the model self-test / demo
+python test_virtual_cell.py      # runs the validation suite (10 checks)
 ```
 
 ```python
@@ -24,7 +31,18 @@ population_mixture(23.0, t=36, ph=hep)  # (mu_basal, mu_mecano, phi)
 fibrosis_prediction(hep)                # F0->F4 prediction
 ```
 
-## Module structure
+## Repository contents
+
+| File | Purpose |
+|---|---|
+| `mvirtual_cell.py` | The physical model and its calibrated parameters (predict). |
+| `calibration.py` | Fitting layer: recover parameters from data (calibrate). |
+| `test_virtual_cell.py` | Executable validation suite (10 qualitative checks). |
+| `Theory_draft.md` | Manuscript draft (model, calibration, RNA-seq validation). |
+| `Datasets.md` | Description of the RNA-seq cohorts used for validation. |
+| `Diagram/` | Study diagram. |
+
+## Model structure (`mvirtual_cell.py`)
 
 1. **Motor-clutch engine** (`_mc_kernel`) — stochastic kernel, numba-accelerated.
 2. **Phenotype** (dataclass) + **PHENOTYPES** — calibrated library (hepatocyte, A549, NHLF, MCF10A, MDA, AT2, fibroblast).
@@ -34,14 +52,51 @@ fibrosis_prediction(hep)                # F0->F4 prediction
 6. **Fibrosis → stiffness → prediction** — `FIBROSIS_STIFFNESS`, `fibrosis_prediction`.
 7. **CALIBRATION** — summary of all values fitted to the data.
 
+## Calibrating from your own data (`calibration.py`)
+
+The fitting layer recovers the model parameters from experimental data, so the
+calibration is reproducible rather than hard-coded.
+
+```python
+import calibration as cal
+
+data = cal.load_hydrogel_csv("paper_data_two_pop.csv")   # {(E, t): areas}
+
+# two-population deconvolution (GMM + BIC): basal vs mechanosensitive
+rows = cal.two_population_table(data)
+print(cal.population_stats(rows))
+
+# fit a full phenotype (lamin A/C, A_min, A_max, tau) from the data
+phenotype, report = cal.fit_phenotype(data, name="my_hepatocyte")
+
+# validate model prediction against RNA-seq (fibrosis)
+corr = cal.correlate_with_expression(["F0","F1","F2","F3","F4"],
+                                      gene_expression, predictor="sigma")
+ranked = cal.rank_genes_by_fit(corr)
+```
+
+Key functions: `deconvolve_two_populations`, `fit_lamin_from_area`,
+`fit_temporal`, `fit_phenotype`, `correlate_with_expression`.
+
+## Validation (`test_virtual_cell.py`)
+
+Runnable checks that the calibrated model reproduces its qualitative anchors
+(not fits — behavioral verification):
+
+```bash
+python test_virtual_cell.py      # or: pytest test_virtual_cell.py -v
+```
+
+Covers: biphasic traction, stiffness-dependent nuclear spreading, YAP
+activation, lamin-knockdown collapse of YAP, phenotype lamin ordering,
+two-population dynamics, contact inhibition, temporal relaxation, monotonic
+fibrosis response, and clutch-vs-motor sensitivity of the optimum.
+
 ## Calibrated parameters (primary hepatocyte)
 
 - **Motor-clutch:** nm=45, Fm=2.0, vu=110, nc=90, kon=0.5, koff0=0.1, Fb=2.0, kc=1.1, α=0.13.
-
 - **Two populations:** basal 37.9 µm² (CV 6%, constant) + mechanosensitive ~68.8 µm² (grows).
-
-- **Viscoelasticity:** τ = 35.3 ± 2.6 h · inferred lamin vs LMNA qPCR: r=0.84.
-
+- **Dynamics:** τ = 35.3 ± 2.6 h · inferred lamin vs LMNA qPCR: r=0.84.
 - **Fibrosis stages:** F0 ~1–4, F1 ~7, F2 ~9.5, F3 ~13, F4 ~26 kPa.
 
 ## Notes
@@ -50,16 +105,13 @@ fibrosis_prediction(hep)                # F0->F4 prediction
 - Simulations are stochastic: use a larger `reps` (6-8) for stable means.
 - Hepatocyte parameters are calibrated against real data; the other cell lines
   use literature-anchored starting points (laminAC is inferred from area and
-  validated against qPCR)rting points (laminAC is inferred from area and
-  validated against qPCR)
+  validated against qPCR).
 
 ## Diagram
 
 ![Study diagram](Diagram/Diagram_mvirtual_cell.png)
 
-## Documentation
+## Citation
 
-Full documentation is available in the [project Wiki](../../wiki):
-
-- [Motor-Clutch Model](../../wiki/Motor-Clutch-Model)
-- [Nuclear Mechanics Model](../../wiki/Nuclear-Mechanics-Model)
+If you use this model or repository, please cite it via the
+[`CITATION.cff`](CITATION.cff) file (GitHub's "Cite this repository" button).
