@@ -49,7 +49,7 @@ fibrosis_prediction(hep)                # F0->F4 prediction
 | `symbolic.py` | Symbolic regression: discover the functional form of σ(E). |
 | `fast_model.py` | Fast analytic surrogate of the stress map (~10⁵× speed-up). |
 | `Theory_draft.md` | Manuscript draft (model, calibration, RNA-seq validation). |
-| `Datasets.md` | Description of the RNA-seq cohorts used for validation. |
+| `Data/Datasets.md` | Description of the RNA-seq cohorts used for validation. |
 | `assets/` | Diagram and logos. |
 
 ## Model structure (`mvirtual_cell.py`)
