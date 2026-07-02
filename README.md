@@ -50,7 +50,7 @@ fibrosis_prediction(hep)                # F0->F4 prediction
 | `fast_model.py` | Fast analytic surrogate of the stress map (~10⁵× speed-up). |
 | `Theory_draft.md` | Manuscript draft (model, calibration, RNA-seq validation). |
 | `Datasets.md` | Description of the RNA-seq cohorts used for validation. |
-| `Diagram/` | Study diagram. |
+| `assets/` | Diagram and logos. |
 
 ## Model structure (`mvirtual_cell.py`)
 
