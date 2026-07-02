@@ -227,7 +227,7 @@ def nuclear_area_time(E, t, ph: Phenotype, A0=None, reps=6, contact_inhibition=F
 #     basal population:          mean 37.9 um^2, CV 6%, CONSTANT (binucleate)
 #     mechanosensitive pop:      mean ~68.8 um^2, grows with stiffness & time
 # ---------------------------------------------------------------------------
-BASAL_POP = dict(mean=37.9, sd=10.3, cv=0.06)         # binucleate, mechanically inert
+BASAL_POP = dict(mean=37.9, sd=2.3, cv=0.06)         # binucleate, mechanically inert
 
 def population_mixture(E, t, ph: Phenotype, phi=None, reps=6,
                        contact_inhibition=True):
