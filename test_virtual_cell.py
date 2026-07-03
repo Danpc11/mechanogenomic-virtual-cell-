@@ -168,6 +168,27 @@ def test_optimum_sensitive_to_clutch_not_motor():
           f">= motor shift={shift_motor:.2f}")
 
 
+def test_tau_scales_with_stiffness():
+    """Recalibration result: nuclear relaxation is SLOWER on stiffer substrates
+    (tau increases with stiffness), from the complete 2-120 h timecourse."""
+    ph = PHENOTYPES["hepatocyte"]
+    tau_soft = mvc.tau_of_E(1.0, ph)
+    tau_stiff = mvc.tau_of_E(23.0, ph)
+    assert tau_stiff > tau_soft, "tau should increase with stiffness"
+    assert tau_stiff / tau_soft > 2.0, "stiff relaxation should be much slower"
+    # dynamics: stiff substrate keeps growing longer than soft
+    A_soft_late = mvc.nuclear_area_time(1.0, 120, ph, reps=REPS)
+    A_soft_mid = mvc.nuclear_area_time(1.0, 36, ph, reps=REPS)
+    A_stiff_late = mvc.nuclear_area_time(23.0, 120, ph, reps=REPS)
+    A_stiff_mid = mvc.nuclear_area_time(23.0, 36, ph, reps=REPS)
+    soft_growth = A_soft_late - A_soft_mid
+    stiff_growth = A_stiff_late - A_stiff_mid
+    assert stiff_growth > soft_growth, ("stiff substrate should keep growing "
+                                        "between 36-120 h more than soft")
+    print(f"  [OK] tau scales with stiffness: {tau_soft:.0f} h (soft) -> "
+          f"{tau_stiff:.0f} h (stiff); stiff still growing 36->120 h")
+
+
 # ---------------------------------------------------------------------------
 ALL_TESTS = [
     test_biphasic_traction,
@@ -180,6 +201,7 @@ ALL_TESTS = [
     test_temporal_relaxation,
     test_fibrosis_monotonic,
     test_optimum_sensitive_to_clutch_not_motor,
+    test_tau_scales_with_stiffness,
 ]
 
 
