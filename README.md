@@ -56,15 +56,22 @@ Phenotype-specific parameters may include:
 
 Current and planned phenotypes include:
 
-| Phenotype | Status | Intended use |
-|---|---|---|
-| Hepatocyte | Reference case study | Hepatic fibrosis and stiffness-driven mechanogenomics |
-| Fibroblast | Exploratory | Matrix remodeling and fibrotic activation |
-| A549 | Exploratory | Lung epithelial mechanotransduction |
-| AT2 | Exploratory | Alveolar epithelial mechanics |
-| MCF10A | Exploratory | Mammary epithelial mechanobiology |
-| MDA-MB-231 | Exploratory | Cancer-cell mechanosensing |
-| NHLF | Exploratory | Lung fibroblast stiffness response |
+| Phenotype | Key | Status | Fast surrogate | Intended use |
+|---|---|---|---|---|
+| Hepatocyte | `hepatocyte` | **Reference case study** | calibrated (R²≈0.98) | Hepatic fibrosis and stiffness-driven mechanogenomics |
+| A549 | `A549` | Exploratory | — | Lung epithelial mechanotransduction |
+| NHLF | `NHLF` | Exploratory | calibrated (R²≈0.98) | Lung fibroblast stiffness response |
+| AT2 | `AT2_lung` | Exploratory | calibrated (R²≈1.00) | Alveolar epithelial mechanics |
+| MCF10A | `MCF10A` | Exploratory | — | Mammary epithelial mechanobiology |
+| MDA-MB-231 | `MDA` | Exploratory | calibrated (R²≈0.98) | Cancer-cell mechanosensing |
+| Fibroblast | `fibroblast` | Exploratory | — | Matrix remodeling and fibrotic activation |
+
+All phenotypes are instantiable today via `VirtualCell(<key>)` or
+`PHENOTYPES[<key>]`; the hepatocyte is the fully calibrated **reference case
+study**, and the others are literature-anchored starting points (with a fitted
+fast surrogate where noted). New phenotypes are added by supplying a parameter
+set — the physical core is shared, so the framework is genuinely phenotype-aware
+rather than hepatocyte-specific.
 
 The hepatocyte model is currently the most developed phenotype because it is supported by hydrogel nuclear-area dynamics and fibrosis-stage transcriptomic validation.
 
@@ -79,6 +86,29 @@ git clone https://github.com/Danpc11/mechanogenomic-virtual-cell.git
 cd mechanogenomic-virtual-cell
 
 pip install -r requirements.txt
+```
+
+Or install it as a package (recommended — makes it importable anywhere and adds
+console commands):
+
+```bash
+pip install -e .              # core
+pip install -e ".[all]"       # + numba, gplearn, figures, and 3D visualization
+```
+
+Installed, the model is importable under the `mvcell` namespace and exposes
+console commands:
+
+```bash
+mvcell-demo          # VirtualCell demo
+mvcell-benchmark     # full model vs simple baselines
+mvcell-sensitivity   # local + global sensitivity
+```
+
+```python
+from mvcell import VirtualCell
+cell = VirtualCell("hepatocyte")
+state = cell.simulate(E=23.0, t=72.0)
 ```
 
 Run the core model demo:
@@ -161,14 +191,22 @@ mechanogenomic-virtual-cell/
 │   ├── mvc_logo_3.png
 │   └── mvirtual_cell_logo.png
 │
-├── src/
+├── pyproject.toml                 # installable package (pip install -e .)
+│
+├── src/                           # importable as the `mvcell` package
+│   ├── __init__.py
 │   ├── paths.py
-│   ├── mvirtual_cell.py
+│   ├── mvirtual_cell.py           # core physical model + phenotype library
+│   ├── virtual_cell.py            # VirtualCell class (stateful interface)
+│   ├── gene_module.py             # mechanosensitive gene layer / hypotheses
 │   ├── fast_model.py
 │   ├── calibration.py
 │   ├── recalibration.py
 │   ├── inference.py
 │   ├── symbolic.py
+│   ├── benchmark.py               # full model vs simple baselines
+│   ├── sensitivity.py             # local (OAT) + global (Sobol)
+│   ├── stats_ci.py                # bootstrap CIs + resampling tests
 │   └── pharmacology.py
 │
 ├── data/
@@ -181,6 +219,14 @@ mechanogenomic-virtual-cell/
 ├── results/
 │   ├── hepatocyte_posterior.json
 │   └── make_figures.py
+│
+├── visualization/                 # model-generated visualization
+│   ├── make_state_grid.py
+│   └── render_pyvista_virtual_cell.py   # 3D (PyVista + Trame)
+│
+├── docs/                          # web demo (GitHub Pages)
+│   ├── virtual_cell_demo.html
+│   └── states.json
 │
 └── test/
     └── test_virtual_cell.py
@@ -386,6 +432,108 @@ Use this module only for exploratory hypothesis generation.
 
 ---
 
+### `src/virtual_cell.py`
+
+The central `VirtualCell` interface. Wraps the physical model into a stateful,
+reusable object — the same physical core, re-parameterized per phenotype, is a
+distinct in-silico avatar. Its single physical input is tissue stiffness (the
+quantity elastography measures clinically).
+
+```python
+from virtual_cell import VirtualCell
+
+cell = VirtualCell("hepatocyte")
+state = cell.simulate(E=23.0, t=72.0)   # advance to a mechanical context
+state.yap_nc, state.nuclear_area        # observables
+cell.state_vector()                     # numeric state vector (for analysis)
+cell.gene_scores()                      # mechanogenomic output
+cell.trajectory()                       # F0->F4 trajectory
+```
+
+`CellState` carries the full observable state (traction, nuclear drive, area,
+YAP, lamin, effective clutches, tau(E), function index, fibrosis stage, gene
+scores).
+
+---
+
+### `src/gene_module.py`
+
+The mechanosensitive gene layer and hypothesis generator. Maps the mechanical
+state to per-gene activation using an explicit response-shape model — **sigmoid
+(threshold), weak-power (saturating), or linear (graded)** — assigned from each
+gene\'s mechanotransduction role *before* looking at RNA-seq, so it is a
+falsifiable prediction rather than a post-hoc fit.
+
+```python
+import gene_module as gm
+
+gm.response_shape_table()        # predicted shape per gene (pre-registered)
+gm.score_genes(nuclear_drive)    # activation scores
+gm.actionable_hypotheses(drive)  # candidate intervention points
+gm.qpcr_panel()                  # suggested validation panel (one per shape)
+```
+
+Actionable genes whose predicted activation crosses threshold are flagged as
+candidate intervention points — the hypothesis-generation output.
+
+---
+
+### `src/benchmark.py`
+
+Benchmarks the full mechanistic model against simple baselines on the same
+data: (a) linear stiffness→area, (b) motor-clutch stress without the
+nuclear/temporal layer, (c) the full model. Uses leave-one-condition-out
+cross-validation and AIC/BIC (complexity-penalized).
+
+```python
+import benchmark as bm
+bm.run_benchmark()
+```
+
+The full model generalizes better (CV-R² ≈ 0.85 vs 0.78) and, crucially, is the
+only one that captures the temporal rise on stiff substrate — the tau(E)
+dynamical law the simple models structurally cannot represent. This is the
+evidence that the physics buys predictive structure, not just fit flexibility.
+
+---
+
+### `src/sensitivity.py`
+
+Local one-at-a-time elasticities and global variance-based Sobol indices (a
+lightweight Saltelli/Jansen estimator, no external SALib dependency).
+
+```python
+import sensitivity as sa
+sa.run_sensitivity()             # local (OAT) + global (Sobol)
+```
+
+Identifies the nuclear gate (`laminAC`) and the adhesion/clutch group (`nc`,
+`kc`) as the parameters the data must constrain — matching what inference
+identifies — while the `alpha` coupling is low-impact and safe to fix. Provides
+the robustness evidence.
+
+---
+
+### `src/stats_ci.py`
+
+Statistical rigor: nonparametric bootstrap confidence intervals and
+resampling-based tests.
+
+```python
+import stats_ci as st
+
+st.bootstrap_ci(sample)                       # BCa/percentile CI for any statistic
+st.fold_change_ci(soft_vals, stiff_vals)      # CI on the stiffness fold-change
+st.bootstrap_parameter(fit_fn, data_rows)     # CI on a fitted parameter
+st.permutation_test(a, b)                     # difference between conditions
+```
+
+The headline mechanosensitivity result comes with uncertainty: the 1→23 kPa
+nuclear-area fold-change is **≈2.1× (95% CI ≈ [1.8, 2.5])**, a real mechanical
+response (the CI excludes 1).
+
+---
+
 ### `src/paths.py`
 
 Centralized path resolver.
@@ -481,6 +629,43 @@ python results/make_figures.py
 
 ---
 
+## Visualization
+
+Visualizations are **generated from the model\'s own state outputs** (not
+hand-drawn cartoons). Every visual feature maps to a model variable:
+
+| Model output | Visual encoding |
+|---|---|
+| `nuclear_area` A(t) | nucleus size |
+| `nuclear_drive` sigma | nucleus flattening + color warmth |
+| `yap_nc` | dots / spheres inside the nucleus |
+| `laminAC` | nuclear-envelope thickness |
+| `nc_eff` | number of adhesions |
+| `traction` T(E) | traction cones at adhesions |
+| gene scores | activation bars |
+
+Two levels:
+
+**Web demo (`docs/`)** — a self-contained `virtual_cell_demo.html` with sliders
+for stiffness and time, publishable via GitHub Pages. Regenerate its states
+with `python visualization/make_state_grid.py`.
+
+**3D scientific rendering (`visualization/render_pyvista_virtual_cell.py`)** —
+PyVista + Trame. Static export works headless; the interactive Trame app serves
+stiffness/time sliders in the browser.
+
+```bash
+# static image (headless)
+python visualization/render_pyvista_virtual_cell.py --E 23 --t 120 --save cell.png
+
+# interactive 3D app (run locally, needs a browser)
+python visualization/render_pyvista_virtual_cell.py --serve
+```
+
+Requires the visualization extra: `pip install -e ".[viz]"`.
+
+---
+
 ## Assets
 
 The `assets/` folder contains visual material for documentation and presentation:
@@ -515,14 +700,14 @@ The model predicts the following physical and biological quantities:
 
 ## Case study: hepatic fibrosis
 
-The first biological application of the mechanogenomic virtual-cell framework is hepatic fibrosis.
+Hepatic fibrosis is the **first, fully-calibrated case study** of the general mechanogenomic virtual-cell framework — chosen because tissue stiffening provides a clean physical axis and because complete nuclear-area timecourses and fibrosis RNA-seq cohorts are available. The framework itself is phenotype-agnostic (see the phenotype table); the hepatocyte is where it is validated in depth.
 
 In this case study, fibrosis progression is treated as a tissue-stiffness axis. The hepatocyte virtual cell is calibrated using nuclear-area dynamics from primary hepatocytes cultured on soft and stiff hydrogels, and the resulting model outputs are compared with fibrosis-associated RNA-seq trajectories from human liver cohorts.
 
 Current model interpretation:
 
 - the mechanosensitive population shows a strong stiffness-dependent nuclear-area increase;
-- the 1→23 kPa response is approximately 2.2-fold for the mechanosensitive population;
+- the 1→23 kPa response is approximately 2.1–2.2-fold (bootstrap 95% CI ≈ [1.8, 2.5]) for the mechanosensitive population;
 - nuclear adaptation is time-dependent and stiffness-dependent;
 - high-stiffness substrates relax more slowly than soft substrates;
 - the stiffness-to-drive relation is saturating rather than purely linear.
@@ -558,7 +743,15 @@ The validation suite checks qualitative anchors of the model, including:
 - contact inhibition;
 - temporal relaxation;
 - monotonic fibrosis-stage response;
-- sensitivity of the traction optimum to clutch and motor parameters.
+- sensitivity of the traction optimum to clutch and motor parameters;
+- stiffness-dependent relaxation time tau(E);
+- the VirtualCell interface and state vector;
+- gene response-shape predictions (sigmoid / weak-power / linear);
+- benchmark: full model generalizes and captures the temporal law;
+- sensitivity: nc and laminAC dominate (matching inference);
+- bootstrap confidence interval on the stiffness fold-change.
+
+The suite currently contains **16 validations** and runs in CI.
 
 ---
 
@@ -609,3 +802,4 @@ See:
 ```text
 LICENSE
 ```
+
