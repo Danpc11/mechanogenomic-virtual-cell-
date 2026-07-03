@@ -1,251 +1,593 @@
-<h1>
-  <img src="assets/mvc_logo_3.png" alt="mVirtual Cell logo" width="30">
-  Mechanogenomic virtual-cell model
-</h1>
+<p align="center">
+  <img src="assets/mvirtual_cell_logo.png" alt="mVirtual Cell logo" width="180"/>
+</p>
 
-[![Python](https://img.shields.io/badge/python-%E2%89%A53.9-3776ab.svg)](https://www.python.org/)
-[![NumPy](https://img.shields.io/badge/NumPy-%E2%89%A51.24-013243.svg)](https://numpy.org/)
-[![SciPy](https://img.shields.io/badge/SciPy-%E2%89%A51.10-8caae6.svg)](https://scipy.org/)
+# Mechanogenomic virtual-cell model
 
-A minimal, first-principles physical model of nuclear mechanotransduction that
-links substrate stiffness to nuclear deformation, YAP/TAZ activity, and
-fibrosis-associated transcriptional trajectories. Calibrated against nuclear
-area of primary hepatocytes on hydrogels and validated against human liver
-RNA-seq cohorts across fibrosis stages.
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![NumPy](https://img.shields.io/badge/NumPy-supported-blue)
+![SciPy](https://img.shields.io/badge/SciPy-supported-blue)
+![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
-📖 **Full documentation:** see the [project Wiki](../../wiki).
+A minimal physical-computational model of nuclear mechanotransduction that links **substrate stiffness** to **cellular traction**, **nuclear mechanical drive**, **nuclear deformation**, **YAP/TAZ activity**, and **fibrosis-associated mechanosensitive transcriptional trajectories**.
+
+The model is calibrated against nuclear-area dynamics of primary hepatocytes cultured on hydrogels and connected to human liver RNA-seq cohorts across fibrosis stages.
+
+Full documentation: see the [project Wiki](https://github.com/Danpc11/mechanogenomic-virtual-cell/wiki).
+
+---
+
+## Conceptual overview
+
+The model represents the cell as a physically constrained mechanotransduction system:
+
+```text
+substrate stiffness
+        ↓
+motor–clutch traction
+        ↓
+nuclear mechanical drive
+        ↓
+lamin A/C-gated nuclear deformation
+        ↓
+YAP/TAZ nuclear activity
+        ↓
+mechanosensitive gene trajectories
+```
+
+The central hypothesis is that tissue stiffening during hepatic fibrosis can be treated as a mechanical input that drives nuclear remodeling and mechanogenomic activation.
+
+---
 
 ## Quick start
 
+Clone the repository and install dependencies:
+
 ```bash
+git clone https://github.com/Danpc11/mechanogenomic-virtual-cell.git
+cd mechanogenomic-virtual-cell
+
 pip install -r requirements.txt
-python src/mvirtual_cell.py       # model self-test / demo
-python tests/test_virtual_cell.py # validation suite (11 checks)
-python results/make_nature_figures.py   # regenerate the figures
 ```
+
+Run the core model demo:
+
+```bash
+python src/mvirtual_cell.py
+```
+
+Run the validation suite:
+
+```bash
+python test/test_virtual_cell.py
+```
+
+Regenerate figures and outputs:
+
+```bash
+python results/make_figures.py
+```
+
+Use the model from Python:
 
 ```python
-import sys; sys.path.insert(0, "src")     # or: pip install -e .
-from mvirtual_cell import (PHENOTYPES, nuclear_stress, nuclear_area_ss,
-                          yap_nc_ratio, nuclear_area_time, population_mixture,
-                          fibrosis_prediction, CALIBRATION)
+import sys
+sys.path.insert(0, "src")
 
-hep = PHENOTYPES["hepatocyte"]          # calibrated phenotype
+from mvirtual_cell import (
+    PHENOTYPES,
+    nuclear_stress,
+    nuclear_area_ss,
+    yap_nc_ratio,
+    nuclear_area_time,
+    population_mixture,
+    fibrosis_prediction,
+    CALIBRATION,
+)
 
-nuclear_stress(23.0, hep)               # nuclear mechanical drive at 23 kPa
-nuclear_area_ss(23.0, hep)              # steady-state nuclear area
-yap_nc_ratio(23.0, hep)                 # YAP nucleocytoplasmic ratio
-nuclear_area_time(23.0, t=36, ph=hep, contact_inhibition=True)  # area at 36 h
-population_mixture(23.0, t=36, ph=hep)  # (mu_low, mu_mecano, phi)
-fibrosis_prediction(hep)                # F0->F4 prediction
+hep = PHENOTYPES["hepatocyte"]
+
+drive = nuclear_stress(23.0, hep)
+area_ss = nuclear_area_ss(23.0, hep)
+yap = yap_nc_ratio(23.0, hep)
+
+area_36h = nuclear_area_time(
+    23.0,
+    t=36,
+    ph=hep,
+    contact_inhibition=True,
+)
+
+mu_low, mu_mecano, phi = population_mixture(23.0, t=36, ph=hep)
+fibrosis = fibrosis_prediction(hep)
 ```
+
+---
 
 ## Repository structure
 
-```
+```text
 mechanogenomic-virtual-cell/
-├── README.md · requirements.txt · CITATION.cff · Theory_draft.md
-├── assets/                      study diagram and logos
-├── src/                         the model and its layers
-│   ├── paths.py                 centralized data/results path resolution
-│   ├── mvirtual_cell.py         physical model + calibrated parameters
-│   ├── fast_model.py            fast analytic surrogate (~10⁵× speed-up)
-│   ├── calibration.py           fitting layer (recover params from data)
-│   ├── recalibration.py         two-level recalibration on the 2-120 h timecourse
-│   ├── inference.py             simulation-based inference (ABC-SMC + timecourse)
-│   ├── symbolic.py              symbolic regression (discover σ(E) form)
-│   └── pharmacology.py          clinical mapping · drugs · toxicity (hypotheses)
-├── data/                        input data
-│   ├── hepatocyte_complete_data.json     complete 2-120 h timecourse (1 & 23 kPa)
-│   ├── hepatocyte_two_populations.csv    two-population deconvolution
-│   ├── saturating_params.json            fitted σ(E) = Vmax·E/(K+E) params
-│   └── Datasets.md                       RNA-seq cohort descriptions
-├── results/                     outputs
-│   ├── hepatocyte_posterior.json         ABC timecourse posterior
-│   ├── make_nature_figures.py            figure generation script
-│   └── figures/                          Fig1-3 + recalibration (pdf + png)
-└── tests/
-    └── test_virtual_cell.py     11 validations (runs in CI)
+│
+├── README.md
+├── requirements.txt
+├── LICENSE
+├── CITATION.cff
+├── Theory_draft.md
+│
+├── assets/
+│   ├── Diagram_mvirtual_cell.png
+│   ├── mvc_logo.png
+│   ├── mvc_logo_3.png
+│   └── mvirtual_cell_logo.png
+│
+├── src/
+│   ├── paths.py
+│   ├── mvirtual_cell.py
+│   ├── fast_model.py
+│   ├── calibration.py
+│   ├── recalibration.py
+│   ├── inference.py
+│   ├── symbolic.py
+│   └── pharmacology.py
+│
+├── data/
+│   ├── RANseq_datasets_info.md
+│   ├── genes_nucleo_all.tsv
+│   ├── hepatocyte_complete_data.json
+│   ├── hepatocyte_two_populations.csv
+│   └── saturating_params.json
+│
+├── results/
+│   ├── hepatocyte_posterior.json
+│   └── make_figures.py
+│
+└── test/
+    └── test_virtual_cell.py
 ```
 
-Modules import each other by name; data and result paths are resolved through
-`src/paths.py`, so scripts work from any working directory. Scripts outside
-`src/` (tests, figure generation) add `src/` to the path automatically.
+Scripts resolve file paths through `src/paths.py`, so data and results are located relative to the repository root rather than the current working directory.
 
-> **Note on σ.** `nuclear_stress` returns a *nuclear mechanical drive*
-> (transmitted nuclear load) — a monotone scalar with force units, not a stress
-> in Pa. The name is kept for continuity; read it as "nuclear drive".
+---
 
-## Model structure (`mvirtual_cell.py`)
+## Main files
 
-1. **Motor-clutch engine** (`_mc_kernel`) — stochastic kernel, numba-accelerated.
-2. **Phenotype** (dataclass) + **PHENOTYPES** — calibrated library (hepatocyte, A549, NHLF, MCF10A, MDA, AT2, fibroblast).
-3. **Mechanotransduction chain** — `traction` → `nuclear_stress` → `nuclear_area_ss`, `yap_nc_ratio`, `lamin_expected`.
-4. **Temporal dynamics + contact inhibition** — `nuclear_area_time`, `nc_effective`, `confluence`.
-5. **Two-population model** — `population_mixture`, `BASAL_POP` (binucleate + mechanosensitive).
-6. **Fibrosis → stiffness → prediction** — `FIBROSIS_STIFFNESS`, `fibrosis_prediction`.
-7. **CALIBRATION** — summary of all values fitted to the data.
+### `src/mvirtual_cell.py`
 
-## Calibrating from your own data (`calibration.py`)
+Core physical model.
 
-The fitting layer recovers the model parameters from experimental data, so the
-calibration is reproducible rather than hard-coded.
+It contains:
+
+1. **Motor–clutch engine**  
+   A stochastic actomyosin–integrin clutch model that converts substrate stiffness into traction.
+
+2. **Phenotype library**  
+   A `Phenotype` dataclass and `PHENOTYPES` dictionary containing calibrated or literature-anchored cell types, including hepatocyte, A549, NHLF, MCF10A, MDA, AT2 and fibroblast.
+
+3. **Mechanotransduction chain**  
+   Functions linking traction to nuclear mechanical drive, nuclear area, YAP/TAZ activity and expected lamin A/C behavior.
+
+4. **Temporal dynamics**  
+   Time-dependent nuclear area relaxation and contact-inhibition effects.
+
+5. **Two-population nuclear-area model**  
+   A basal population plus a mechanosensitive population.
+
+6. **Fibrosis-stage prediction**  
+   A stiffness mapping from fibrosis stages F0–F4 to predicted mechanotransduction outputs.
+
+7. **Calibration summary**  
+   The `CALIBRATION` object records fitted and inferred values.
+
+> Note on terminology: `nuclear_stress` returns a **nuclear mechanical drive**, not a physical stress in Pa. The function name is kept for continuity.
+
+---
+
+### `src/calibration.py`
+
+Fitting and calibration layer.
+
+Use this file to recover model parameters from experimental nuclear-area data.
+
+Key functions include:
+
+- `load_hydrogel_csv`
+- `deconvolve_two_populations`
+- `two_population_table`
+- `population_stats`
+- `fit_lamin_from_area`
+- `fit_temporal`
+- `fit_phenotype`
+- `correlate_with_expression`
+
+Example:
 
 ```python
 import calibration as cal
 
-data = cal.load_hydrogel_csv("areas.csv")            # {(E, t): areas}
+data = cal.load_hydrogel_csv("areas.csv")
 
-# two-population deconvolution (GMM + BIC): basal vs mechanosensitive
 rows = cal.two_population_table(data)
 print(cal.population_stats(rows))
 
-# fit a full phenotype (lamin A/C, A_min, A_max, tau) from the data
-phenotype, report = cal.fit_phenotype(data, name="my_hepatocyte")
-
-# validate model prediction against RNA-seq (fibrosis)
-corr = cal.correlate_with_expression(["F0","F1","F2","F3","F4"],
-                                      gene_expression, predictor="sigma")
+phenotype, report = cal.fit_phenotype(
+    data,
+    name="my_hepatocyte",
+)
 ```
 
-Key functions: `deconvolve_two_populations`, `fit_lamin_from_area`,
-`fit_temporal`, `fit_phenotype`, `correlate_with_expression`.
+---
 
-## Bayesian inference (`inference.py`)
+### `src/recalibration.py`
 
-Infers the **posterior** over physical parameters (with uncertainty and
-identifiability), not a point fit. The stochastic motor is expensive, so a
-fast emulator is built once and ABC-SMC runs on it.
+Recalibration using the complete 2–120 h hepatocyte timecourse.
 
-```python
-import inference as inf
-# static (area vs stiffness) inference over nc, laminAC:
-res = inf.abc_smc(observed_area, Es)
-# timecourse inference over laminAC, A_max, A0 (uses complete 2-120 h dynamics):
-res_t = inf.abc_timecourse(observed_dynamics)   # {(E, t): area}
-```
+This module performs a two-level fit:
 
-Two inference paths. The **timecourse** version uses the complete 2-120 h
-dynamics (recalibrated data) and is the current best estimate: it gives lamin
-A/C ≈ **2.0** (95% CI ~1.7–2.4), together with a **strong** mechanical response
-(area ~2.2× from 1→23 kPa). This *supersedes* the earlier lamin ≈ 1.66 estimate,
-which came from 36 h-truncated data and wrongly implied a weak response.
+1. time-dependent fitting from the complete 1 kPa and 23 kPa curves;
+2. stiffness-shape fitting from additional hydrogel points.
 
-Honest limits: only two stiffnesses (1 & 23 kPa) have complete timecourses, so
-laminAC, the motor coupling α, and A_max/A0 are partially confounded; the fit
-(R² ≈ 0.76) shows a systematic bias because the saturating motor stress does not
-generate enough 1-vs-23 kPa contrast to match the observed 2.2× ratio.
-**Report the directly-measured 2.2× fold-change as the primary result** and
-treat the laminAC posterior as an effective estimate. Fully resolving α needs
-the intermediate stiffnesses (0.5, 5 kPa) at steady state (120 h). See
-`hepatocyte_posterior.json`.
-
-## Discovering the functional form (`symbolic.py`)
-
-Symbolic regression (genetic programming) on data generated by the **stochastic
-motor** shows that the stiffness→drive map is a saturating (Michaelis-Menten)
-form, `σ(E) = Vmax·E/(K+E)`, which beats power-law, log, and linear baselines.
-
-## Fast analytic surrogate (`fast_model.py`)
-
-Uses the discovered saturating form for an instant, closed-form `nuclear_stress`
-(~10⁵× faster than the stochastic motor, R² ≈ 0.97–0.997 per phenotype). The
-stochastic engine in `mvirtual_cell.py` remains the ground truth; this is the
-fast approximation for sweeps, sensitivity, and inference. Parameters are loaded
-from `saturating_params.json` (the reproducible source of truth).
-
-```python
-import fast_model as fm
-fm.nuclear_stress_fast(23.0, "hepatocyte")   # instant
-fm.calibrate(PHENOTYPES["MCF10A"])           # refit Vmax, K for any phenotype
-```
-
-## Application: clinical, drug, toxicity (`pharmacology.py`)
-
-A hypothesis-generating layer, **not** a validated pharmacology/toxicity
-predictor (no drug metabolism, PK, off-targets, or DILI). Three connections,
-each grounded in the physics with explicit limits:
-
-- **Clinical** — liver elastography (kPa) is the model's input; `map_patient`
-  places a patient on the mechanogenomic trajectory.
-- **Drugs** — mechanotransduction-targeting drugs map to physical parameters
-  (contractility, clutches, tissue stiffness, YAP output). Three axes are
-  distinguished: *mechanical* (resolved directly), *growth-factor/signaling*
-  (nintedanib, pirfenidone, nerandomilast — net stiffness only), and
-  *metabolic* (resmetirom, lanifibranor — furthest upstream, benefit not
-  predictable from mechanics).
-- **Toxicity** — hepatocyte function as a function of the nuclear mechanical
-  drive σ (albumin/urea/CYP450/HNF4a fall as σ rises). Mechanical-function
-  axis only.
-
-```python
-import pharmacology as ph
-ph.map_patient(13.0)                 # F3 patient -> trajectory
-ph.screen_drugs(E=26.0)              # rank drugs at cirrhotic stiffness
-ph.toxicity_flag("fasudil", E=26.0) # mechanical-function change
-```
-
-## Validation (`test_virtual_cell.py`)
-
-Runnable checks that the calibrated model reproduces its qualitative anchors:
-
-```bash
-python test_virtual_cell.py      # or: pytest test_virtual_cell.py -v
-```
-
-Covers: biphasic traction, stiffness-dependent nuclear spreading, YAP
-activation, lamin-knockdown collapse of YAP, phenotype lamin ordering,
-two-population dynamics, contact inhibition, temporal relaxation, monotonic
-fibrosis response, and clutch-vs-motor sensitivity of the optimum.
-
-## Calibrated parameters (primary hepatocyte)
-
-Recalibrated on the **complete timecourse** (2/36/72/120 h at 1 & 23 kPa;
-earlier work used data truncated at 36 h, which underestimated the dynamics).
-
-- **Motor-clutch:** nm=45, Fm=2.0, vu=110, nc=90, kon=0.5, koff0=0.1, Fb=2.0, kc=1.1, α=0.13.
-- **Two populations:** low pop ~38 µm² (mononucleate + binucleate mix, weakly
-  stiffness-responsive) + mechanosensitive pop (mononucleate, grows strongly).
-- **Stiffness-dependent dynamics:** relaxation τ **scales with stiffness** —
-  ~16 h (soft, 1 kPa) to ~79 h (stiff, 23 kPa). The old fixed τ=35 h was an
-  artifact of 36 h truncation. See `tau_of_E()` and `recalibration.py`.
-- **Strong mechanical response:** nuclear area ~2.2× from 1→23 kPa
-  (A_ss ≈ 100 → 253 µm² for the mechanosensitive population), stable over time.
-- **Saturating form (motor):** σ(E) = 65·E/(5.01+E), R² = 0.98.
-- **Fibrosis stages:** F0 ~1–4, F1 ~7, F2 ~9.5, F3 ~13, F4 ~26 kPa.
-
-> **Data limitation.** The complete timecourse exists only for 1 and 23 kPa.
-> The 0.5 and 5 kPa conditions were measured at 36 h only, which is far below τ
-> at high stiffness, so their steady-state area is not directly measured. The
-> area-vs-stiffness *shape* between anchors is therefore interpolated.
-
-## Recalibration (`recalibration.py`)
-
-Two-level fit on the complete timecourse: τ(E) and the mechanical fold-change
-from the full 1 & 23 kPa curves (level 1), and the area-vs-stiffness shape from
-the 36 h data (level 2, flagged as transient — the 36 h curve is non-monotonic
-because slow-relaxing stiff substrates have not yet equilibrated).
+Example:
 
 ```python
 import recalibration as rc
-rc.tau_vs_stiffness()        # tau per population at 1 and 23 kPa
-rc.mechanical_fold_change()  # 23/1 kPa response over time (~2.2x)
-rc.recalibrated_summary()    # full recalibrated parameter summary
+
+rc.tau_vs_stiffness()
+rc.mechanical_fold_change()
+rc.recalibrated_summary()
 ```
 
-## Notes
+Current interpretation:
 
-- Runs without numba, but ~50-100x slower; install it for parameter sweeps.
-- Simulations are stochastic: use a larger `reps` (6-8) for stable means.
-- Hepatocyte parameters are calibrated against real data; the other cell lines
-  use literature-anchored starting points (laminAC is inferred from area and
-  validated against qPCR).
+- the complete timecourse supports a strong mechanical response from 1 to 23 kPa;
+- the mechanosensitive nuclear-area population increases approximately 2.2-fold between soft and stiff substrates;
+- intermediate stiffness conditions are currently less constrained because complete timecourses are available only for 1 and 23 kPa.
 
-## Diagram
+---
 
-![Study diagram](assets/Diagram_mvirtual_cell.png)
+### `src/inference.py`
+
+Simulation-based inference for uncertainty and identifiability.
+
+This module estimates posterior distributions over physical parameters rather than relying only on point estimates.
+
+It includes:
+
+- ABC-SMC inference for static area-vs-stiffness data;
+- timecourse inference for dynamic nuclear-area data;
+- posterior summaries for lamin A/C and other effective physical parameters.
+
+Example:
+
+```python
+import inference as inf
+
+res = inf.abc_smc(observed_area, Es)
+res_t = inf.abc_timecourse(observed_dynamics)
+```
+
+The posterior output is stored in:
+
+```text
+results/hepatocyte_posterior.json
+```
+
+---
+
+### `src/symbolic.py`
+
+Symbolic regression module.
+
+This module searches for compact analytic expressions that approximate the stiffness-to-nuclear-drive relationship generated by the stochastic motor–clutch model.
+
+The current discovered form is a saturating response:
+
+```text
+sigma(E) = Vmax * E / (K + E)
+```
+
+This form is stored in:
+
+```text
+data/saturating_params.json
+```
+
+---
+
+### `src/fast_model.py`
+
+Fast analytic surrogate for parameter sweeps and inference.
+
+The stochastic motor–clutch model is the mechanistic reference model.  
+The fast model uses the saturating expression discovered by symbolic regression to provide an instant approximation.
+
+Use this for:
+
+- parameter sweeps;
+- sensitivity analysis;
+- inference;
+- figure generation;
+- repeated simulations.
+
+Example:
+
+```python
+import fast_model as fm
+
+fm.nuclear_stress_fast(23.0, "hepatocyte")
+fm.calibrate(PHENOTYPES["MCF10A"])
+```
+
+---
+
+### `src/pharmacology.py`
+
+Hypothesis-generating clinical and pharmacological extension.
+
+This is **not** a validated pharmacology, PK, DILI or toxicity model.
+
+It maps mechanical disease state to exploratory predictions involving:
+
+- elastography stiffness;
+- mechanotransduction-targeting interventions;
+- mechanical-function axes such as albumin, urea, CYP450 and HNF4A behavior.
+
+Example:
+
+```python
+import pharmacology as ph
+
+ph.map_patient(13.0)
+ph.screen_drugs(E=26.0)
+ph.toxicity_flag("fasudil", E=26.0)
+```
+
+Use this module only for exploratory hypothesis generation.
+
+---
+
+### `src/paths.py`
+
+Centralized path resolver.
+
+This keeps scripts portable by resolving paths to:
+
+- repository root;
+- `data/`;
+- `results/`;
+- `assets/`.
+
+---
+
+## Data files
+
+### `data/hepatocyte_complete_data.json`
+
+Complete primary-hepatocyte nuclear-area timecourse.
+
+Current complete timecourse conditions:
+
+- 1 kPa;
+- 23 kPa;
+- 2 h, 36 h, 72 h and 120 h.
+
+This file anchors the recalibrated time-dependent model.
+
+---
+
+### `data/hepatocyte_two_populations.csv`
+
+Two-population deconvolution of nuclear-area distributions.
+
+The model separates:
+
+1. a low-area basal population;
+2. a mechanosensitive population whose nuclear area increases with stiffness and time.
+
+---
+
+### `data/saturating_params.json`
+
+Parameters for the fast saturating stiffness-to-drive surrogate:
+
+```text
+sigma(E) = Vmax * E / (K + E)
+```
+
+These parameters are used by `src/fast_model.py`.
+
+---
+
+### `data/genes_nucleo_all.tsv`
+
+Mechanosensitive and nuclear-associated gene list used for mechanogenomic analysis.
+
+Representative modules include:
+
+- YAP/TAZ–TEAD signaling;
+- nuclear envelope and lamina;
+- adhesion and cytoskeleton;
+- extracellular matrix and fibrosis.
+
+---
+
+### `data/RANseq_datasets_info.md`
+
+RNA-seq cohort notes for fibrosis-stage validation.
+
+This file documents the human liver RNA-seq datasets used to compare model-predicted mechanotransduction outputs with fibrosis-associated transcriptional trajectories.
+
+---
+
+## Results files
+
+### `results/hepatocyte_posterior.json`
+
+Posterior parameter estimates from simulation-based inference.
+
+This file summarizes uncertainty in the recalibrated hepatocyte model.
+
+---
+
+### `results/make_figures.py`
+
+Figure-generation script.
+
+Use it to regenerate project figures and visual outputs from the model and data files:
+
+```bash
+python results/make_figures.py
+```
+
+---
+
+## Assets
+
+The `assets/` folder contains visual material for documentation and presentation:
+
+```text
+assets/Diagram_mvirtual_cell.png
+assets/mvc_logo.png
+assets/mvc_logo_3.png
+assets/mvirtual_cell_logo.png
+```
+
+These files are used for the README, Wiki and conceptual model diagrams.
+
+---
+
+## Model outputs
+
+The model predicts the following physical and biological quantities:
+
+| Output | Meaning |
+|---|---|
+| `traction(E)` | Cell-generated traction from the motor–clutch system |
+| `nuclear_stress(E)` | Nuclear mechanical drive transmitted from the substrate |
+| `nuclear_area_ss(E)` | Steady-state projected nuclear area |
+| `nuclear_area_time(E, t)` | Time-dependent nuclear area |
+| `yap_nc_ratio(E)` | YAP nuclear-to-cytoplasmic ratio |
+| `lamin_expected(E)` | Expected lamin A/C-linked nuclear response |
+| `population_mixture(E, t)` | Basal and mechanosensitive nuclear-area populations |
+| `fibrosis_prediction()` | Predicted F0–F4 mechanotransduction trajectory |
+
+---
+
+## Calibrated hepatocyte model
+
+The current hepatocyte calibration is based on the complete nuclear-area timecourse at 1 and 23 kPa, with additional stiffness information from hydrogel measurements.
+
+Current model interpretation:
+
+- the mechanosensitive population shows a strong stiffness-dependent nuclear-area increase;
+- the 1→23 kPa response is approximately 2.2-fold for the mechanosensitive population;
+- nuclear adaptation is time-dependent and stiffness-dependent;
+- high-stiffness substrates relax more slowly than soft substrates;
+- the stiffness-to-drive relation is saturating rather than purely linear.
+
+Approximate fibrosis stiffness mapping used by the model:
+
+| Fibrosis stage | Approximate stiffness |
+|---|---|
+| F0 | ~1–4 kPa |
+| F1 | ~7 kPa |
+| F2 | ~9.5 kPa |
+| F3 | ~13 kPa |
+| F4 | ~23–26 kPa |
+
+---
+
+## Validation
+
+Run:
+
+```bash
+python test/test_virtual_cell.py
+```
+
+The validation suite checks qualitative anchors of the model, including:
+
+- stiffness-dependent traction;
+- stiffness-dependent nuclear spreading;
+- YAP/TAZ activation;
+- lamin A/C perturbation behavior;
+- phenotype-level lamin ordering;
+- two-population nuclear dynamics;
+- contact inhibition;
+- temporal relaxation;
+- monotonic fibrosis-stage response;
+- sensitivity of the traction optimum to clutch and motor parameters.
+
+---
+
+## Current limitations
+
+This repository is an active research model. Important limitations:
+
+1. `nuclear_stress` is a nuclear mechanical-drive scalar, not a stress in Pa.
+2. Complete long-time-course nuclear-area data are currently available only for 1 and 23 kPa.
+3. Intermediate stiffnesses require additional long-time measurements to fully constrain the steady-state stiffness curve.
+4. The RNA-seq validation uses tissue-level fibrosis datasets and may include cell-composition effects.
+5. The pharmacology module is hypothesis-generating and should not be interpreted as a validated drug-response or toxicity predictor.
+6. qPCR validation in hepatocytes on fibrosis-like hydrogels is the next experimental step for closing the mechanogenomic loop.
+
+---
+
+## Suggested paper storyline
+
+Working title:
+
+```text
+A mechanogenomic virtual-cell model predicts stiffness-driven transcriptional trajectories
+```
+
+Core claim:
+
+```text
+The virtual-cell physical state predicts stiffness-driven mechanogenomic trajectories better than stiffness alone.
+```
+
+Planned figure logic:
+
+1. **Framework** — define the virtual-cell state.
+2. **Physical model** — motor–clutch and nuclear mechanics.
+3. **Hydrogel calibration** — nuclear-area dynamics and two-population fitting.
+4. **Fibrosis prediction** — F0–F4 stiffness mapping and transcriptomic trajectories.
+5. **Benchmark and ablation** — compare against linear, power-law and Hill/sigmoid baselines.
+6. **qPCR validation** — test predicted genes in hepatocytes on fibrosis-like hydrogels.
+
+---
+
+## Documentation
+
+Additional documentation is available in the [project Wiki](https://github.com/Danpc11/mechanogenomic-virtual-cell/wiki), including:
+
+- Motor–Clutch Model;
+- Nuclear Mechanics Model;
+- model architecture;
+- fibrosis stiffness mapping;
+- gene trajectory interpretation.
+
+---
 
 ## Citation
 
-If you use this model or repository, please cite it via the
-[`CITATION.cff`](CITATION.cff) file (GitHub's "Cite this repository" button).
+If you use this model or repository, please cite it using the repository citation file:
+
+```text
+CITATION.cff
+```
+
+GitHub can automatically generate a citation from the **Cite this repository** button.
+
+---
+
+## License
+
+This project is released under the MIT License.
+
+See:
+
+```text
+LICENSE
+```
