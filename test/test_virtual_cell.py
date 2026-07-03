@@ -23,6 +23,10 @@ Author: Daniel Pérez-Calixto (INMEGEN / UNAM)
 ================================================================================
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
 import numpy as np
 import mvirtual_cell as mvc
 from mvirtual_cell import (PHENOTYPES, traction, nuclear_stress,
