@@ -1,13 +1,10 @@
-<p align="center">
-  <img src="assets/mvirtual_cell_logo.png" alt="mVirtual Cell logo" width="180"/>
+<p align="left">
+  <img src="assets/mvirtual_cell_logo.png" alt="mVirtual Cell logo" width="80"/> # Mechanogenomic virtual-cell model
 </p>
-
-# Mechanogenomic virtual-cell model
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![NumPy](https://img.shields.io/badge/NumPy-supported-blue)
 ![SciPy](https://img.shields.io/badge/SciPy-supported-blue)
-![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
 A minimal physical-computational model of nuclear mechanotransduction that links **substrate stiffness** to **cellular traction**, **nuclear mechanical drive**, **nuclear deformation**, **YAP/TAZ activity**, and **fibrosis-associated mechanosensitive transcriptional trajectories**.
 
