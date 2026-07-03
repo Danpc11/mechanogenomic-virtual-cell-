@@ -1,0 +1,109 @@
+{
+  "_source": "Primary hepatocyte nucleus area, DAPI Z-projection, two-population deconvolution",
+  "_note": "Complete timecourse (2/36/72/120h) available ONLY for 1 and 23 kPa. Other stiffnesses (0.5, 5 kPa) truncated at 36h. Low population = mix of mononucleate + binucleate, weakly stiffness-responsive.",
+  "complete_timecourse": {
+    "23_kPa": {
+      "t_h": [
+        2,
+        36,
+        72,
+        120
+      ],
+      "raw_mean": [
+        69.05,
+        149.98,
+        163.4,
+        182.08
+      ],
+      "raw_sd": [
+        25.59,
+        56.9,
+        64.8,
+        80.59
+      ],
+      "pop_low": [
+        43.94,
+        93.86,
+        109.49,
+        116.88
+      ],
+      "pop_low_sd": [
+        11.28,
+        17.83,
+        32.45,
+        30.55
+      ],
+      "pop_high": [
+        null,
+        168.96,
+        199.95,
+        224.35
+      ],
+      "pop_high_sd": [
+        null,
+        53.12,
+        56.14,
+        78.14
+      ]
+    },
+    "1_kPa": {
+      "t_h": [
+        2,
+        36,
+        72,
+        120
+      ],
+      "raw_mean": [
+        62.87,
+        67.42,
+        80.62,
+        77.63
+      ],
+      "raw_sd": [
+        16.66,
+        26.78,
+        29.46,
+        29.98
+      ],
+      "pop_low": [
+        61.7,
+        41.98,
+        56.15,
+        54.03
+      ],
+      "pop_low_sd": [
+        14.41,
+        8.8,
+        12.16,
+        14.49
+      ],
+      "pop_high": [
+        null,
+        80.82,
+        97.88,
+        99.8
+      ],
+      "pop_high_sd": [
+        null,
+        25.5,
+        31.7,
+        24.88
+      ]
+    }
+  },
+  "form_at_36h": {
+    "_note": "Four stiffnesses at 36h only \u2014 for area-vs-stiffness SHAPE. NOT steady state (36h << tau at 23kPa).",
+    "E_kPa": [
+      0.5,
+      1,
+      5,
+      23
+    ],
+    "pop_high_36h": [
+      63.7,
+      73.7,
+      86.6,
+      77.2
+    ]
+  }
+}
