@@ -115,10 +115,17 @@ class Phenotype:
     alpha: float   = 0.15# E -> kappa coupling  (kappa = alpha * E)
     # --- geometry (nuclear area, um^2) ---
     A_min: float = 40.0  # basal (unstressed) projected nuclear area
-    A_max: float = 120.0 # maximally spread area
+    A_max: float = 250.0 # maximally spread area (mechanosensitive, stiff+long time)
     s0: float    = 15.0  # half-saturation stress scale (x laminAC)
-    # --- dynamics ---
-    tau: float   = 35.0  # nuclear flattening time constant (h)  [calibrated]
+    # --- dynamics: tau SCALES WITH STIFFNESS (recalibrated on full timecourse) ---
+    #   The complete 1 & 23 kPa timecourse (2-120 h) shows nuclear relaxation is
+    #   fast on soft substrate (~16 h) and slow on stiff (~79 h). tau(E) below
+    #   interpolates in log-stiffness between these anchors.
+    tau_soft: float = 16.0   # relaxation time constant at E_soft (h)
+    tau_stiff: float = 79.0  # relaxation time constant at E_stiff (h)
+    E_soft: float = 1.0      # soft anchor (kPa)
+    E_stiff: float = 23.0    # stiff anchor (kPa)
+    tau: float   = 35.0      # legacy fixed tau (kept for backward compatibility)
 
 
 # ---------------------------------------------------------------------------
@@ -128,10 +135,11 @@ class Phenotype:
 #      key discriminating parameter (inferred from area, validated by LMNA qPCR).
 # ---------------------------------------------------------------------------
 PHENOTYPES = {
-    # --- primary calibration target ---
+    # --- primary calibration target (recalibrated on full 2-120 h timecourse) ---
     "hepatocyte": Phenotype("Primary hepatocyte (rat)",
         nm=45, nc=90, kc=1.1, alpha=0.13, laminAC=1.10,
-        A_min=38.0, A_max=90.0, s0=15.0, tau=35.0),
+        A_min=38.0, A_max=250.0, s0=15.0,
+        tau_soft=16.0, tau_stiff=79.0, E_soft=1.0, E_stiff=23.0, tau=35.0),
     # --- lung ---
     "A549": Phenotype("A549 (lung adenocarcinoma)",
         nm=48, nc=95, kc=0.9, alpha=0.16, laminAC=0.80),
@@ -149,6 +157,17 @@ PHENOTYPES = {
         nm=60, nc=120, kc=1.0, alpha=0.15, laminAC=1.00),
 }
 
+# Posterior estimate from ABC over the COMPLETE mechanosensitive timecourse
+# (2-120 h at 1 & 23 kPa; see inference.abc_timecourse and recalibration.py).
+# Effective lamin A/C ~2.0 with A_max ~337 (strong mechanical response). This is
+# a SEPARATE, non-default phenotype provided for reproducibility of the inference
+# result, NOT the default calibrated phenotype. laminAC, alpha and A_max/A0 are
+# partially confounded with only two stiffnesses; report the measured 2.2x
+# fold-change as the primary mechanosensitivity result.
+PHENOTYPES["hepatocyte_posterior"] = replace(
+    PHENOTYPES["hepatocyte"], name="Primary hepatocyte (timecourse posterior)",
+    laminAC=2.0, A_max=337.0)
+
 
 # ============================================================================
 # 3.  MECHANOTRANSDUCTION CHAIN   E -> sigma -> {area, YAP}
@@ -162,7 +181,14 @@ def traction(E, ph: Phenotype, reps=6, T=10.0, dt=2e-4, burn=0.4):
 
 
 def nuclear_stress(E, ph: Phenotype, reps=6):
-    """Nuclear stress sigma(E) = T(E) * kappa/(kappa+kc)."""
+    """Nuclear mechanical drive sigma(E) = T(E) * kappa/(kappa+kc).
+
+    NOTE ON UNITS: sigma is a *transmitted nuclear load / mechanical-drive
+    proxy*, not a physical stress in Pa. T(E) has units of force (pN) and the
+    factor kappa/(kappa+kc) is dimensionless, so sigma carries force units. It
+    becomes a true stress only if divided by an effective nuclear area. It is
+    used here as a monotone scalar drive to the nuclear-area and YAP maps; the
+    name 'nuclear_stress' is kept for continuity but read it as 'nuclear drive'."""
     kappa = ph.alpha * E
     T = traction(E, ph, reps=reps)
     return T * kappa / (kappa + ph.kc)
@@ -206,28 +232,44 @@ def nc_effective(ph: Phenotype, t, beta=0.5, t_c=18.0):
     return max(int(round(ph.nc * (1.0 - beta * confluence(t, t_c)))), 5)
 
 
+def tau_of_E(E, ph: Phenotype):
+    """Stiffness-dependent nuclear relaxation time constant tau(E), in hours.
+
+    Recalibrated on the complete 1 & 23 kPa timecourse (2-120 h): relaxation is
+    fast on soft substrate and slow on stiff. Interpolates (and extrapolates)
+    linearly in log-stiffness between the soft and stiff anchors, clipped to
+    stay positive. This is the model's falsifiable prediction that nuclear
+    spreading takes longer to equilibrate on stiffer substrates."""
+    lo, hi = np.log10(ph.E_soft), np.log10(ph.E_stiff)
+    frac = (np.log10(max(E, 1e-6)) - lo) / (hi - lo)
+    tau = ph.tau_soft + frac * (ph.tau_stiff - ph.tau_soft)
+    return float(max(tau, 1.0))
+
+
 def nuclear_area_time(E, t, ph: Phenotype, A0=None, reps=6, contact_inhibition=False,
-                      beta=0.5, t_c=18.0):
+                      beta=0.5, t_c=18.0, fixed_tau=False):
     """Nuclear area at time t (h): first-order relaxation toward the
-    stiffness-set steady state with time constant tau. Optionally include
-    contact inhibition (reduces effective clutches as confluence rises)."""
+    stiffness-set steady state with a STIFFNESS-DEPENDENT time constant tau(E)
+    (see tau_of_E). Optionally include contact inhibition. Set fixed_tau=True to
+    use the legacy constant ph.tau instead (backward compatibility)."""
     if A0 is None:
         A0 = ph.A_min + 15.0
     ph_t = ph
     if contact_inhibition:
         ph_t = replace(ph, nc=nc_effective(ph, t, beta, t_c))
     A_ss = nuclear_area_ss(E, ph_t, reps=reps)
-    return A_ss + (A0 - A_ss) * np.exp(-t / ph.tau)
+    tau = ph.tau if fixed_tau else tau_of_E(E, ph)
+    return A_ss + (A0 - A_ss) * np.exp(-t / tau)
 
 
 # ============================================================================
 # 5.  TWO-POPULATION MODEL  (basal binucleate + mechanosensitive)
 # ============================================================================
 #   Calibrated from hydrogel data (GMM deconvolution, BIC-selected):
-#     basal population:          mean 37.9 um^2, CV 6%, CONSTANT (binucleate)
-#     mechanosensitive pop:      mean ~68.8 um^2, grows with stiffness & time
+#     low population:   mononucleate + binucleate mix, weakly stiffness-responsive
+#     mechanosensitive: mononucleate, grows strongly with stiffness & time (~2.2x)
 # ---------------------------------------------------------------------------
-BASAL_POP = dict(mean=37.9, sd=2.3, cv=0.06)         # binucleate, mechanically inert
+BASAL_POP = dict(mean=37.9, sd=10.3, cv=0.06)         # low pop (mixed), weakly responsive
 
 def population_mixture(E, t, ph: Phenotype, phi=None, reps=6,
                        contact_inhibition=True):
@@ -250,17 +292,31 @@ FIBROSIS_STIFFNESS = {"F0": 2.5, "F1": 7.0, "F2": 9.5, "F3": 13.0, "F4": 26.0}
 #   F0 healthy liver spans ~1-4 kPa; 2.5 kPa (midpoint) used as the single
 #   representative value for the simulation. F4 cirrhosis: ~26 kPa (up to 48-69).
 
-def fibrosis_prediction(ph: Phenotype = None, reps=8):
+def fibrosis_prediction(ph: Phenotype = None, reps=8, lamin_feedback=False):
     """Predict mechanotransduction output across fibrosis stages F0->F4.
-    Returns a dict of arrays keyed by stage list."""
+    Returns a dict of arrays keyed by stage list.
+
+    lamin_expected(E) is reported as an INDEPENDENT stiffness-dependent
+    molecular prediction (to compare against LMNA qPCR); by default it does NOT
+    feed back into the sigma/YAP computation, which use the baseline phenotype
+    laminAC. Set lamin_feedback=True to enable the (unvalidated) coupling where
+    the stiffness-scaled lamin stiffens the nucleus and modulates YAP/area."""
     if ph is None:
         ph = PHENOTYPES["hepatocyte"]
     stages = list(FIBROSIS_STIFFNESS.keys())
     E = np.array([FIBROSIS_STIFFNESS[s] for s in stages])
-    sigma = np.array([nuclear_stress(e, ph, reps=reps) for e in E])
-    yap = np.array([yap_nc_ratio(e, ph, reps=reps) for e in E])
-    lamin = np.array([lamin_expected(e, ph) for e in E])
-    return dict(stages=stages, E_kPa=E, sigma=sigma, yap=yap, lamin=lamin)
+    sigma, yap, lamin = [], [], []
+    for e in E:
+        ph_e = ph
+        if lamin_feedback:
+            # stiffness-scaled lamin feeds back into nuclear stiffness (s_half)
+            ph_e = replace(ph, laminAC=ph.laminAC * lamin_expected(e, ph))
+        sigma.append(nuclear_stress(e, ph_e, reps=reps))
+        yap.append(yap_nc_ratio(e, ph_e, reps=reps))
+        lamin.append(lamin_expected(e, ph))
+    return dict(stages=stages, E_kPa=E, sigma=np.array(sigma),
+                yap=np.array(yap), lamin=np.array(lamin),
+                lamin_feedback=lamin_feedback)
 
 
 # ============================================================================
@@ -268,19 +324,25 @@ def fibrosis_prediction(ph: Phenotype = None, reps=8):
 # ============================================================================
 CALIBRATION = {
     "phenotype": "primary_rat_hepatocyte",
-    "data": "~40,000 nuclei, DAPI Z-projection, 0.5/1/5/23 kPa x 2/12/24/36 h",
+    "data": "DAPI Z-projection nuclei; full timecourse 2/36/72/120 h at 1 & 23 kPa; "
+            "0.5/1/5/23 kPa at 36 h (transient)",
     "motor_clutch": dict(nm=45, Fm=2.0, vu=110.0, nc=90,
                          kon=0.5, koff0=0.1, Fb=2.0, kc=1.1, alpha=0.13),
     "two_populations": dict(
-        basal_mean_um2=37.9, basal_cv=0.06,          # constant (binucleate)
-        mechano_mean_um2=68.8,                        # grows with stiffness & time
-        mechano_time_corr=0.53,                       # r vs time (p=0.04)
-        basal_time_corr=-0.19,                        # r vs time (p=0.48, n.s.)
-        one_pop_rejected_by_BIC="16/16 conditions"),
-    "time_constant_tau_h": 35.3,                      # +/- 2.6 h
-    "mechanism": "temporal dynamics (R2=0.56) > variable coupling (R2=0.33)",
+        low_pop_note="mononucleate + binucleate mix, weakly stiffness-responsive",
+        mechano_note="mononucleate mechanosensitive; grows with stiffness & time",
+        one_pop_rejected_by_BIC="yes (deconvolution required)"),
+    "dynamics_recalibrated": dict(
+        tau_soft_1kPa_h=16.0,                         # fast relaxation on soft
+        tau_stiff_23kPa_h=79.0,                       # slow relaxation on stiff
+        note="tau SCALES WITH STIFFNESS (full 2-120 h timecourse); "
+             "old fixed 35 h was an artifact of 36 h truncation"),
+    "mechanical_response": dict(
+        fold_change_23_over_1kPa=2.2,                 # strong, stable over time
+        A_ss_soft_high_um2=100.0, A_ss_stiff_high_um2=253.0),
     "lamin_validation": "inferred lamin vs LMNA qPCR: r=0.84",
-    "stiffness_effect_pooled_eta2": 0.022,            # masked by averaging both pops
+    "limitation": "complete timecourse only at 1 & 23 kPa; steady-state shape "
+                  "at 0.5 & 5 kPa not measured (36 h << tau at high stiffness)",
     "fibrosis_mapping_kPa": FIBROSIS_STIFFNESS,
     "fibrosis_rnaseq": "31/31 mechanosensitive genes up with stage; 17/31 convex",
 }
