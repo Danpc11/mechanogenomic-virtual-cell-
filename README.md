@@ -7,9 +7,9 @@
 ![NumPy](https://img.shields.io/badge/NumPy-supported-blue)
 ![SciPy](https://img.shields.io/badge/SciPy-supported-blue)
 
-A minimal physical-computational model of nuclear mechanotransduction that links **substrate stiffness** to **cellular traction**, **nuclear mechanical drive**, **nuclear deformation**, **YAP/TAZ activity**, and **fibrosis-associated mechanosensitive transcriptional trajectories**.
+**Mechanogenomic Virtual Cell** is a phenotype-aware physical-computational framework for modeling how extracellular stiffness is converted into cellular traction, nuclear mechanotransduction, YAP/TAZ activity and mechanosensitive transcriptional trajectories.
 
-The model is calibrated against nuclear-area dynamics of primary hepatocytes cultured on hydrogels and connected to human liver RNA-seq cohorts across fibrosis stages.
+The current reference case study focuses on **primary hepatocytes and hepatic fibrosis**, where tissue stiffening is used as a mechanical axis to predict nuclear remodeling and fibrosis-associated transcriptional trajectories. The framework is designed to support additional mechanically distinct cell phenotypes.
 
 Full documentation: see the [project Wiki](https://github.com/Danpc11/mechanogenomic-virtual-cell/wiki).
 
@@ -20,7 +20,7 @@ Full documentation: see the [project Wiki](https://github.com/Danpc11/mechanogen
 The model represents the cell as a physically constrained mechanotransduction system:
 
 ```text
-substrate stiffness
+extracellular stiffness
         ↓
 motor–clutch traction
         ↓
@@ -33,7 +33,40 @@ YAP/TAZ nuclear activity
 mechanosensitive gene trajectories
 ```
 
-The central hypothesis is that tissue stiffening during hepatic fibrosis can be treated as a mechanical input that drives nuclear remodeling and mechanogenomic activation.
+The central hypothesis is that extracellular and tissue stiffness can be treated as a physical input that drives nuclear remodeling and mechanogenomic activation.
+
+In the current reference implementation, hepatic fibrosis is used as the first disease case study. Fibrosis progression is represented as a tissue-stiffness axis, and the hepatocyte virtual cell is calibrated using nuclear-area dynamics from primary hepatocytes cultured on hydrogels.
+
+---
+
+## Phenotype-aware modeling
+
+The framework is not restricted to a single cell type. Each phenotype is represented by a parameter set controlling mechanical sensing, nuclear mechanics and mechanotranscriptional response.
+
+Phenotype-specific parameters may include:
+
+- actomyosin contractility;
+- effective clutch number;
+- clutch stiffness;
+- nuclear-area range;
+- lamin A/C level;
+- YAP/TAZ mechanosensitivity;
+- contact inhibition;
+- time-dependent nuclear relaxation.
+
+Current and planned phenotypes include:
+
+| Phenotype | Status | Intended use |
+|---|---|---|
+| Hepatocyte | Reference case study | Hepatic fibrosis and stiffness-driven mechanogenomics |
+| Fibroblast | Exploratory | Matrix remodeling and fibrotic activation |
+| A549 | Exploratory | Lung epithelial mechanotransduction |
+| AT2 | Exploratory | Alveolar epithelial mechanics |
+| MCF10A | Exploratory | Mammary epithelial mechanobiology |
+| MDA-MB-231 | Exploratory | Cancer-cell mechanosensing |
+| NHLF | Exploratory | Lung fibroblast stiffness response |
+
+The hepatocyte model is currently the most developed phenotype because it is supported by hydrogel nuclear-area dynamics and fibrosis-stage transcriptomic validation.
 
 ---
 
@@ -85,10 +118,16 @@ from mvirtual_cell import (
 
 hep = PHENOTYPES["hepatocyte"]
 
+# Nuclear mechanical drive at fibrosis-like stiffness
 drive = nuclear_stress(23.0, hep)
+
+# Steady-state nuclear area
 area_ss = nuclear_area_ss(23.0, hep)
+
+# YAP nuclear/cytoplasmic ratio
 yap = yap_nc_ratio(23.0, hep)
 
+# Time-dependent nuclear area at 36 h
 area_36h = nuclear_area_time(
     23.0,
     t=36,
@@ -96,7 +135,10 @@ area_36h = nuclear_area_time(
     contact_inhibition=True,
 )
 
+# Two-population nuclear-area model
 mu_low, mu_mecano, phi = population_mixture(23.0, t=36, ph=hep)
+
+# Fibrosis-stage prediction
 fibrosis = fibrosis_prediction(hep)
 ```
 
@@ -160,7 +202,7 @@ It contains:
    A stochastic actomyosin–integrin clutch model that converts substrate stiffness into traction.
 
 2. **Phenotype library**  
-   A `Phenotype` dataclass and `PHENOTYPES` dictionary containing calibrated or literature-anchored cell types, including hepatocyte, A549, NHLF, MCF10A, MDA, AT2 and fibroblast.
+   A `Phenotype` dataclass and `PHENOTYPES` dictionary containing calibrated or literature-anchored cell phenotypes.
 
 3. **Mechanotransduction chain**  
    Functions linking traction to nuclear mechanical drive, nuclear area, YAP/TAZ activity and expected lamin A/C behavior.
@@ -471,9 +513,11 @@ The model predicts the following physical and biological quantities:
 
 ---
 
-## Calibrated hepatocyte model
+## Case study: hepatic fibrosis
 
-The current hepatocyte calibration is based on the complete nuclear-area timecourse at 1 and 23 kPa, with additional stiffness information from hydrogel measurements.
+The first biological application of the mechanogenomic virtual-cell framework is hepatic fibrosis.
+
+In this case study, fibrosis progression is treated as a tissue-stiffness axis. The hepatocyte virtual cell is calibrated using nuclear-area dynamics from primary hepatocytes cultured on soft and stiff hydrogels, and the resulting model outputs are compared with fibrosis-associated RNA-seq trajectories from human liver cohorts.
 
 Current model interpretation:
 
@@ -528,6 +572,7 @@ This repository is an active research model. Important limitations:
 4. The RNA-seq validation uses tissue-level fibrosis datasets and may include cell-composition effects.
 5. The pharmacology module is hypothesis-generating and should not be interpreted as a validated drug-response or toxicity predictor.
 6. qPCR validation in hepatocytes on fibrosis-like hydrogels is the next experimental step for closing the mechanogenomic loop.
+7. Additional phenotypes are exploratory until phenotype-specific calibration data are incorporated.
 
 ---
 
@@ -542,12 +587,24 @@ A mechanogenomic virtual-cell model predicts stiffness-driven transcriptional tr
 Core claim:
 
 ```text
-The virtual-cell physical state predicts stiffness-driven mechanogenomic trajectories better than stiffness alone.
+A phenotype-aware physical virtual-cell state predicts stiffness-driven mechanogenomic trajectories better than stiffness alone.
+```
+
+Current reference case study:
+
+```text
+Primary hepatocytes and hepatic fibrosis.
+```
+
+Planned extension:
+
+```text
+Additional phenotypes will be incorporated through phenotype-specific mechanical, nuclear and transcriptional parameter sets.
 ```
 
 Planned figure logic:
 
-1. **Framework** — define the virtual-cell state.
+1. **Framework** — define the phenotype-aware virtual-cell state.
 2. **Physical model** — motor–clutch and nuclear mechanics.
 3. **Hydrogel calibration** — nuclear-area dynamics and two-population fitting.
 4. **Fibrosis prediction** — F0–F4 stiffness mapping and transcriptomic trajectories.
