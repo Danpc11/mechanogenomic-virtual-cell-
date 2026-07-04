@@ -159,7 +159,13 @@ class VirtualCell:
                 self._gene_module = gene_module
             except Exception:
                 return {}
-        return self._gene_module.score_genes(state.nuclear_drive, state.yap_nc)
+        key = getattr(self, "phenotype_key", "hepatocyte")
+        try:
+            return self._gene_module.score_genes(
+                state.nuclear_drive, state.yap_nc, phenotype=key)
+        except TypeError:
+            # older signature without phenotype
+            return self._gene_module.score_genes(state.nuclear_drive, state.yap_nc)
 
     # -- trajectory across a stiffness or time sweep -----------------------
     def trajectory(self, Es=None, t=None):
