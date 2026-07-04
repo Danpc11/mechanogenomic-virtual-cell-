@@ -10,7 +10,9 @@
 
 **Mechanogenomic Virtual Cell** is a phenotype-aware physical-computational framework for modeling how extracellular stiffness is converted into cellular traction, nuclear mechanotransduction, YAP/TAZ activity and mechanosensitive transcriptional trajectories.
 
-The current reference case study focuses on **primary hepatocytes and hepatic fibrosis**, where tissue stiffening is used as a mechanical axis to predict nuclear remodeling and fibrosis-associated transcriptional trajectories. The framework is designed to support additional mechanically distinct cell phenotypes.
+The current reference case study focuses on **primary hepatocytes and hepatic fibrosis**, where tissue stiffening is used as a mechanical axis to predict nuclear remodeling and fibrosis-associated transcriptional trajectories. The framework is designed to support additional mechanically distinct cell phenotypes, each with its own identity and lineage-marker gene panel.
+
+▶ **Try it interactively (no install):** open the [Colab demo](https://colab.research.google.com/github/Danpc11/mechanogenomic-virtual-cell/blob/main/demo/virtual_cell_demo.ipynb) — pick a phenotype, move the stiffness/time sliders, and watch the cell state and visualizations update live.
 
 Full documentation: see the [project Wiki](https://github.com/Danpc11/mechanogenomic-virtual-cell/wiki).
 
@@ -221,13 +223,22 @@ mechanogenomic-virtual-cell/
 │   ├── hepatocyte_posterior.json
 │   └── make_figures.py
 │
+├── demo/                          # interactive Colab notebook
+│   └── virtual_cell_demo.ipynb
+│
 ├── visualization/                 # model-generated visualization
 │   ├── make_state_grid.py
+│   ├── render_fluorescence.py           # immunofluorescence-style (F-actin/DAPI/YAP)
+│   ├── render_cross_section_hq.py       # labeled anatomical cross-section (SVG)
+│   ├── render_cell_realistic.py         # realistic adhered-cell 3D
 │   └── render_pyvista_virtual_cell.py   # 3D (PyVista + Trame)
+│
+├── docs/                          # web demo (GitHub Pages)
 │   ├── virtual_cell_demo.html
+│   └── states.json
 │
 └── test/
-    └── test_virtual_cell.py
+    └── test_virtual_cell.py       # 17 validations (runs in CI)
 ```
 
 Scripts resolve file paths through `src/paths.py`, so data and results are located relative to the repository root rather than the current working directory.
@@ -462,17 +473,36 @@ state to per-gene activation using an explicit response-shape model — **sigmoi
 gene\'s mechanotransduction role *before* looking at RNA-seq, so it is a
 falsifiable prediction rather than a post-hoc fit.
 
+The gene panel is **phenotype-aware**. A set of broadly mechanosensitive *core*
+genes (YAP/TEAD targets, matrix, cytoskeleton, nuclear envelope) applies to
+every cell type; on top of them, each phenotype carries its own **identity and
+lineage markers**. Identity markers fall as stiffness rises (dedifferentiation);
+lineage effectors rise. These are the model\'s per-phenotype predictions, to be
+validated against that cell type\'s RNA-seq.
+
+| Phenotype | Cell-type-specific markers (direction with stiffness) |
+|---|---|
+| `hepatocyte` | HNF4A, ALB, CYP3A4 ↓ (identity/function) · MKI67 ↑ (proliferation) |
+| `A549` | SFTPC, NKX2-1 ↓ · VIM, SNAI1 ↑ (EMT) |
+| `NHLF` | COL3A1, FAP, POSTN ↑ (myofibroblast/IPF) · PDGFRA |
+| `AT2_lung` | SFTPC, SFTPB ↓ · AGER, KRT8 ↑ (aberrant transition) |
+| `MCF10A` | CDH1, KRT18 ↓ (epithelial) · VIM, SNAI2 ↑ (EMT) |
+| `MDA` | VIM, MMP9, MMP2, ZEB1 ↑ (invasion/metastasis) |
+| `fibroblast` | ACTA2, COL3A1, FAP, S100A4 ↑ (fibrotic activation) |
+
 ```python
 import gene_module as gm
 
-gm.response_shape_table()        # predicted shape per gene (pre-registered)
-gm.score_genes(nuclear_drive)    # activation scores
-gm.actionable_hypotheses(drive)  # candidate intervention points
-gm.qpcr_panel()                  # suggested validation panel (one per shape)
+gm.genes_for("MDA")                        # effective gene panel for a phenotype
+gm.response_shape_table("hepatocyte")      # predicted shape per gene (pre-registered)
+gm.score_genes(nuclear_drive, phenotype="NHLF")   # phenotype-specific activation
+gm.actionable_hypotheses(drive, phenotype="MDA")  # candidate intervention points
+gm.qpcr_panel()                            # suggested validation panel (one per shape)
 ```
 
-Actionable genes whose predicted activation crosses threshold are flagged as
-candidate intervention points — the hypothesis-generation output.
+`VirtualCell(<key>).gene_scores()` automatically uses the panel for that
+phenotype. Actionable genes whose predicted activation crosses threshold are
+flagged as candidate intervention points — the hypothesis-generation output.
 
 ---
 
@@ -642,25 +672,57 @@ hand-drawn cartoons). Every visual feature maps to a model variable:
 | `traction` T(E) | traction cones at adhesions |
 | gene scores | activation bars |
 
-Two levels:
+### Interactive Colab demo (no install)
 
-**Web demo (`docs/`)** — a self-contained `virtual_cell_demo.html` with sliders
-for stiffness and time, publishable via GitHub Pages. Regenerate its states
-with `python visualization/make_state_grid.py`.
+The fastest way to explore the virtual cell is the Colab notebook — pick a
+phenotype and set stiffness and time with sliders; the model recomputes the cell
+state and renders it live (all code hidden behind the controls):
 
-**3D scientific rendering (`visualization/render_pyvista_virtual_cell.py`)** —
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Danpc11/mechanogenomic-virtual-cell/blob/main/demo/virtual_cell_demo.ipynb)
+
+`demo/virtual_cell_demo.ipynb` — phenotype dropdown, stiffness/time sliders, a
+fluorescence + cross-section view with the cell-type label, phenotype-specific
+and shared gene bars, and a fibrosis-stage trajectory sweep.
+
+### Renderers
+
+Several model-driven renderers live in `visualization/`:
+
+**Immunofluorescence style (`render_fluorescence.py`)** — top-down microscopy-like
+images (F-actin / DAPI / YAP) that match experimental IF panels: cortical actin
+and dispersed cytoplasmic YAP on soft, aligned stress fibers and nuclear-enriched
+YAP on stiff. Ideal for figures alongside real microscopy.
+
+```bash
+python visualization/render_fluorescence.py --save if_progression.png   # soft→stiff panel
+python visualization/render_fluorescence.py --E 23 --t 120 --save one.png
+```
+
+**Anatomical cross-section (`render_cross_section_hq.py`)** — a labeled side-view
+schematic (cytoskeleton, nucleus, nuclear lamina, YAP, focal adhesions, ECM) as a
+publication-ready, editable **SVG**, with illustration-grade gradients, shading
+and textures. Proportions (cell height/spread, actin, YAP localization, ECM
+density, adhesions) are all model-derived.
+
+```bash
+python visualization/render_cross_section_hq.py --save cell_hq.svg        # soft+stiff pair
+python visualization/render_cross_section_hq.py --E 23 --save stiff_hq.svg
+```
+
+**3D scientific rendering (`render_pyvista_virtual_cell.py`, `render_cell_realistic.py`)** —
 PyVista + Trame. Static export works headless; the interactive Trame app serves
 stiffness/time sliders in the browser.
 
 ```bash
-# static image (headless)
 python visualization/render_pyvista_virtual_cell.py --E 23 --t 120 --save cell.png
-
-# interactive 3D app (run locally, needs a browser)
-python visualization/render_pyvista_virtual_cell.py --serve
+python visualization/render_pyvista_virtual_cell.py --serve   # interactive 3D app
 ```
 
-Requires the visualization extra: `pip install -e ".[viz]"`.
+The 3D renderers require the visualization extra: `pip install -e ".[viz]"`.
+
+**Web demo (`docs/`)** — a self-contained `virtual_cell_demo.html` with sliders
+for stiffness and time, publishable via GitHub Pages. Regenerate its states with
+`python visualization/make_state_grid.py`.
 
 ---
 
@@ -745,11 +807,12 @@ The validation suite checks qualitative anchors of the model, including:
 - stiffness-dependent relaxation time tau(E);
 - the VirtualCell interface and state vector;
 - gene response-shape predictions (sigmoid / weak-power / linear);
+- phenotype-specific gene panels (identity down, effectors up; panels differ);
 - benchmark: full model generalizes and captures the temporal law;
 - sensitivity: nc and laminAC dominate (matching inference);
 - bootstrap confidence interval on the stiffness fold-change.
 
-The suite currently contains **16 validations** and runs in CI.
+The suite currently contains **17 validations** and runs in CI.
 
 ---
 
@@ -800,4 +863,3 @@ See:
 ```text
 LICENSE
 ```
-
