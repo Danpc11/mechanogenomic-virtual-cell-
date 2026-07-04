@@ -95,38 +95,148 @@ GENES = {
 _INVERSE = {"HNF4A"}
 
 
-def score_genes(nuclear_drive, yap_nc=None):
-    """Return {gene_symbol: activation_score in [0, ~1]} at a given drive."""
+# ---------------------------------------------------------------------------
+# Tissue-specific gene panels
+# ---------------------------------------------------------------------------
+# The CORE genes above (YAP/TEAD targets, matrix, cytoskeleton, envelope) are
+# broadly mechanosensitive and apply to every phenotype. On top of them, each
+# cell type has its OWN identity markers and lineage-specific mechano-responsive
+# genes. Identity markers typically FALL as stiffness rises (dedifferentiation);
+# lineage effectors typically RISE. These are the model's per-phenotype
+# predictions, to be validated against that cell type's RNA-seq.
+#
+#   direction: "up" (rises with drive) or "down" (identity loss, inverse)
+# ---------------------------------------------------------------------------
+CORE_GENES = ["CTGF", "CYR61", "ANKRD1", "ACTA2", "COL1A1", "LOX",
+              "TAGLN", "TPM1", "FN1", "LMNA", "LMNB1"]
+
+PHENOTYPE_GENES = {
+    "hepatocyte": {
+        "HNF4A":  Gene("HNF4A", "linear", "hepatocyte identity (inverse)",
+                       drive_ref=55, note="master hepatic TF; lost on stiff"),
+        "ALB":    Gene("ALB (albumin)", "linear", "hepatocyte function (inverse)",
+                       drive_ref=55, note="secretory function marker"),
+        "CYP3A4": Gene("CYP3A4", "linear", "hepatic metabolism (inverse)",
+                       drive_ref=58, note="drug-metabolizing identity"),
+        "MKI67":  Gene("MKI67 (Ki-67)", "sigmoid", "proliferation", K=33, n=3,
+                       note="proliferative re-entry with stiffness"),
+    },
+    "A549": {  # lung adenocarcinoma epithelial
+        "SFTPC": Gene("SFTPC (surfactant C)", "linear", "AT2 identity (inverse)",
+                      drive_ref=55, note="alveolar epithelial identity"),
+        "NKX2-1": Gene("NKX2-1 (TTF-1)", "linear", "lung lineage TF (inverse)",
+                       drive_ref=58),
+        "VIM":   Gene("VIM (vimentin)", "sigmoid", "EMT/mesenchymal", K=30, n=3,
+                      actionable=True, note="EMT program with stiffening"),
+        "SNAI1": Gene("SNAI1 (Snail)", "sigmoid", "EMT master TF", K=32, n=4,
+                      actionable=True),
+    },
+    "NHLF": {  # normal lung fibroblast
+        "COL3A1": Gene("COL3A1", "sigmoid", "fibrillar collagen", K=31, n=3,
+                       actionable=True, note="fibrotic ECM output"),
+        "FAP":    Gene("FAP", "sigmoid", "activated fibroblast", K=33, n=4,
+                       actionable=True, note="myofibroblast activation marker"),
+        "POSTN":  Gene("POSTN (periostin)", "sigmoid", "matricellular", K=32, n=3,
+                       actionable=True, note="IPF/fibrosis marker"),
+        "PDGFRA": Gene("PDGFRA", "weak_power", "fibroblast identity", p=0.5),
+    },
+    "AT2_lung": {  # alveolar type-2 epithelial
+        "SFTPC": Gene("SFTPC (surfactant C)", "linear", "AT2 identity (inverse)",
+                      drive_ref=55, note="canonical AT2 marker; lost in fibrosis"),
+        "SFTPB": Gene("SFTPB (surfactant B)", "linear", "AT2 function (inverse)",
+                      drive_ref=56),
+        "AGER":  Gene("AGER (AT1 marker)", "sigmoid", "AT2->AT1 transition",
+                      K=31, n=3, note="aberrant differentiation on stiff"),
+        "KRT8":  Gene("KRT8", "sigmoid", "transitional/aberrant epithelium",
+                      K=32, n=3, note="KRT8+ transitional state in IPF"),
+    },
+    "MCF10A": {  # normal mammary epithelial
+        "CDH1":  Gene("CDH1 (E-cadherin)", "linear", "epithelial identity (inverse)",
+                      drive_ref=55, note="epithelial junction; lost in EMT"),
+        "KRT18": Gene("KRT18", "linear", "luminal epithelial (inverse)",
+                      drive_ref=57),
+        "VIM":   Gene("VIM (vimentin)", "sigmoid", "EMT/mesenchymal", K=30, n=3,
+                      actionable=True, note="EMT with matrix stiffening"),
+        "SNAI2": Gene("SNAI2 (Slug)", "sigmoid", "EMT TF", K=32, n=4,
+                      actionable=True),
+    },
+    "MDA": {  # MDA-MB-231 invasive breast cancer
+        "VIM":   Gene("VIM (vimentin)", "weak_power", "mesenchymal (already high)",
+                      p=0.4, note="constitutively mesenchymal"),
+        "MMP9":  Gene("MMP9", "sigmoid", "invasion/ECM degradation", K=30, n=3,
+                      actionable=True, note="stiffness-driven invasiveness"),
+        "MMP2":  Gene("MMP2", "sigmoid", "invasion", K=31, n=3, actionable=True),
+        "ZEB1":  Gene("ZEB1", "sigmoid", "EMT/stemness TF", K=33, n=4,
+                      actionable=True, note="metastatic program"),
+    },
+    "fibroblast": {  # generic fibroblast
+        "ACTA2":  Gene("ACTA2 (α-SMA)", "sigmoid", "myofibroblast", K=30, n=3,
+                       actionable=True),
+        "COL3A1": Gene("COL3A1", "sigmoid", "fibrillar collagen", K=31, n=3,
+                       actionable=True),
+        "FAP":    Gene("FAP", "sigmoid", "activated fibroblast", K=33, n=4,
+                       actionable=True),
+        "S100A4": Gene("S100A4 (FSP1)", "weak_power", "fibroblast activation",
+                       p=0.5),
+    },
+}
+# genes in the per-phenotype panels that represent identity LOST with stiffness
+_PHENO_INVERSE = {"HNF4A", "ALB", "CYP3A4", "SFTPC", "SFTPB", "NKX2-1",
+                  "CDH1", "KRT18", "PDGFRA"}
+
+
+def genes_for(phenotype="hepatocyte"):
+    """Return the effective gene set for a phenotype: shared CORE mechanosensitive
+    genes + that cell type's identity/lineage markers."""
+    genes = {k: GENES[k] for k in CORE_GENES}
+    genes.update(PHENOTYPE_GENES.get(phenotype, {}))
+    return genes
+
+
+def _inverse_set(phenotype="hepatocyte"):
+    inv = set(_INVERSE)
+    for k in PHENOTYPE_GENES.get(phenotype, {}):
+        if k in _PHENO_INVERSE:
+            inv.add(k)
+    return inv
+
+
+def score_genes(nuclear_drive, yap_nc=None, phenotype="hepatocyte"):
+    """Return {gene_symbol: activation_score} at a given drive, using the gene
+    panel for `phenotype` (shared core genes + that cell type's markers)."""
+    genes = genes_for(phenotype)
+    inverse = _inverse_set(phenotype)
     out = {}
-    for key, g in GENES.items():
+    for key, g in genes.items():
         s = g.score(nuclear_drive)
-        if key in _INVERSE:
+        if key in inverse:
             s = float(np.clip(1.0 - s, 0, 1.5))
         out[g.symbol] = round(s, 3)
     return out
 
 
-def response_shape_table():
-    """The model's PREDICTED response-shape class per gene (for pre-registration
-    before looking at RNA-seq)."""
+def response_shape_table(phenotype="hepatocyte"):
+    """The model's PREDICTED response-shape class per gene for a phenotype
+    (for pre-registration before looking at that cell type's RNA-seq)."""
+    genes = genes_for(phenotype)
     rows = []
-    for key, g in GENES.items():
+    for key, g in genes.items():
         rows.append(dict(gene=g.symbol, shape=g.shape, role=g.role,
                          actionable=g.actionable))
     return rows
 
 
-def actionable_hypotheses(nuclear_drive, threshold=0.5):
+def actionable_hypotheses(nuclear_drive, threshold=0.5, phenotype="hepatocyte"):
     """HYPOTHESIS GENERATOR: actionable genes whose predicted activation exceeds
-    `threshold` at the given drive. These are candidate intervention points."""
-    scored = score_genes(nuclear_drive)
+    `threshold` at the given drive, for this phenotype's panel."""
+    genes = genes_for(phenotype)
+    inverse = _inverse_set(phenotype)
+    scored = score_genes(nuclear_drive, phenotype=phenotype)
     hits = []
-    for key, g in GENES.items():
-        if not g.actionable:
+    for key, g in genes.items():
+        if not g.actionable or key in inverse:
             continue
         s = scored[g.symbol]
-        if key in _INVERSE:
-            continue
         if s >= threshold:
             hits.append(dict(gene=g.symbol, score=s, shape=g.shape,
                              role=g.role, note=g.note))
