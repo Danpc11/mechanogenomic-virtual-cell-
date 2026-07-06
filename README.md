@@ -6,7 +6,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![NumPy](https://img.shields.io/badge/NumPy-supported-blue)
 ![SciPy](https://img.shields.io/badge/SciPy-supported-blue)
-[![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://github.com/Danpc11/mechanogenomic-virtual-cell/blob/main/docker)
+[![Docker Hub](https://img.shields.io/badge/docker-pipelinesinmegen%2Fmvcell-0db7ed?labelColor=000000&logo=docker)](https://hub.docker.com/r/pipelinesinmegen/mvcell)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Danpc11/mechanogenomic-virtual-cell/blob/main/demo/virtual_cell_demo.ipynb)
 
 **Mechanogenomic Virtual Cell** is a phenotype-aware physical-computational framework for modeling how extracellular stiffness is converted into cellular traction, nuclear mechanotransduction, YAP/TAZ activity and mechanosensitive transcriptional trajectories.
@@ -182,16 +182,20 @@ fibrosis = fibrosis_prediction(hep)
 
 For fully reproducible runs — same Python, same dependency versions, no local
 setup — use the container. It runs the model, tests, figures, renderers, and the
-notebook identically on any machine. Build from the repo root, pointing at the
-Dockerfile in `docker/`:
+notebook identically on any machine. The image is published on Docker Hub as
+**`pipelinesinmegen/mvcell:v0.1`**.
 
 ```bash
-docker build -t mvcell -f docker/Dockerfile .
+# pull the prebuilt image (no build needed)
+docker pull pipelinesinmegen/mvcell:v0.1
 
-docker run --rm mvcell                 # run the validation suite (proves the build)
-docker run --rm mvcell demo            # VirtualCell demo
-docker run --rm -p 8888:8888 mvcell jupyter   # serve the interactive notebook
-docker run --rm -it mvcell bash        # interactive shell
+# or build it yourself from the repo root, pointing at the Dockerfile in docker/
+docker build -t pipelinesinmegen/mvcell:v0.1 -f docker/Dockerfile .
+
+docker run --rm pipelinesinmegen/mvcell:v0.1                 # validation suite (proves the build)
+docker run --rm pipelinesinmegen/mvcell:v0.1 demo           # VirtualCell demo
+docker run --rm -p 8888:8888 pipelinesinmegen/mvcell:v0.1 jupyter   # interactive notebook
+docker run --rm -it pipelinesinmegen/mvcell:v0.1 bash       # interactive shell
 ```
 
 Rendering runs headless inside the container, so the fluorescence, cross-section,
@@ -213,7 +217,7 @@ mechanogenomic-virtual-cell/
 ├── Theory_draft.md
 │
 ├── docker/                        # reproducible container
-│   ├── Dockerfile                 # build: docker build -t mvcell -f docker/Dockerfile .
+│   ├── Dockerfile                 # build: docker build -t pipelinesinmegen/mvcell:v0.1 -f docker/Dockerfile .
 │   ├── docker-compose.yml
 │   ├── docker-entrypoint.sh
 │   └── README.md                  # Docker usage guide
@@ -658,9 +662,25 @@ Representative modules include:
 
 ### `data/RANseq_datasets_info.md`
 
-RNA-seq cohort notes for fibrosis-stage validation.
+RNA-seq cohort notes for fibrosis-stage transcriptomic validation. Documents the
+human liver RNA-seq datasets used to compare model-predicted mechanotransduction
+outputs against fibrosis-associated transcriptional trajectories.
 
-This file documents the human liver RNA-seq datasets used to compare model-predicted mechanotransduction outputs with fibrosis-associated transcriptional trajectories.
+The project integrates three public human liver RNA-seq cohorts from the Gene
+Expression Omnibus (GEO), all derived from snap-frozen liver biopsies spanning
+the full fibrosis spectrum (histologically normal F0 controls through F1–F4),
+with NAFLD/NASH-associated fibrosis as the dominant etiology:
+
+| Dataset | Cohort | Samples | Notes |
+|---|---|---|---|
+| [GSE130970](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE130970) | NAFLD severity | 78 biopsies (6 control, 72 NAFLD/NASH) | bulk RNA-seq, F0–F4 |
+| [GSE135251](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE135251) | NAFLD/NASH staging | large staged cohort | fibrosis-stage transcriptomes |
+| [GSE162694](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE162694) | NAFLD fibrosis | staged biopsies | fibrosis-stage transcriptomes |
+
+These provide the transcriptional trajectories against which the phenotype-aware
+gene panels (`gene_module.py`) are validated — the model predicts each gene's
+response-shape from its mechanotransduction role *before* fitting to this data,
+so the comparison is a falsifiable test rather than a post-hoc fit.
 
 ---
 
