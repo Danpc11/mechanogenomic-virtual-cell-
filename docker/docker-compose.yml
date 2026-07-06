@@ -11,14 +11,14 @@ services:
     build:
       context: ..                    # repo root = build context
       dockerfile: docker/Dockerfile
-    image: mvcell:latest
+    image: pipelinesinmegen/mvcell:v0.1
     command: ["test"]
 
   jupyter:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: mvcell:latest
+    image: pipelinesinmegen/mvcell:v0.1
     command: ["jupyter"]
     ports:
       - "8888:8888"
