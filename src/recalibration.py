@@ -22,7 +22,6 @@ This module recalibrates in two levels, honestly bounded by the data we have:
            at high stiffness. Full-timecourse data at 0.5 and 5 kPa are not
            available, so the steady-state shape there is an extrapolation.
 
-Author: Daniel Pérez-Calixto (INMEGEN / UNAM)
 Dependencies: numpy, scipy; loads hepatocyte_complete_data.json.
 ================================================================================
 """
