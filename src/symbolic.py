@@ -19,7 +19,6 @@ expensive stochastic simulator to generate (E -> sigma) data, then let genetic
 programming find sigma ≈ f(E) in elementary functions.
 
 Engine: gplearn (pure-python genetic programming; no Julia/torch needed).
-Author: Daniel Pérez-Calixto (INMEGEN / UNAM)
 ================================================================================
 """
 
