@@ -28,8 +28,6 @@ Usage:
         --out transcriptomics/results/validation_results
 
 Outputs {out}.tsv (per-gene) and {out}.json (summary + statistics).
-
-Author: Daniel Pérez-Calixto (INMEGEN / UNAM)
 ================================================================================
 """
 
