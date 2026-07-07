@@ -6,3 +6,17 @@ Icon?
 ._*
 .Spotlight-V100
 .Trashes
+
+# raw GEO downloads (large, re-downloadable)
+geo/raw_downloads/
+
+# heavy regenerable artifacts, ignored by extension
+*.rds
+*.RData
+norm_counts_*.tsv
+*_counts_master.tsv
+
+# essential results kept in the repo
+!geo/R_objects/GSE130970_META.rds
+!geo/R_objects/GSE135251_META.rds
+!geo/R_objects/GSE162694_META.rds
