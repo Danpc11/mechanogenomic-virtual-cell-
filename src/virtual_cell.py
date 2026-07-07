@@ -18,8 +18,6 @@ The single physical input is the tissue/substrate stiffness E (kPa) — the same
 quantity measured clinically by elastography — plus optional time t (h). The
 cell exposes a full observable state and a numeric state vector for downstream
 analysis (sensitivity, benchmarking, visualization).
-
-Author: Daniel Pérez-Calixto (INMEGEN / UNAM)
 ================================================================================
 """
 
