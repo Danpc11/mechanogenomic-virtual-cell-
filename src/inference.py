@@ -19,8 +19,6 @@ no black box — the physical simulator IS the model):
 The posterior tells you, e.g., "nc = 90 ± 15, and kon is NOT identified by area
 data alone" — exactly the identifiability statement a reviewer wants, and the
 quantitative version of the lamin-identifiability claim in the manuscript.
-
-Author: Daniel Pérez-Calixto (INMEGEN / UNAM)
 ================================================================================
 """
 
