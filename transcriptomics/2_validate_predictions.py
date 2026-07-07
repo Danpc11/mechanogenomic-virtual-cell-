@@ -23,7 +23,7 @@ Reports, per gene and in aggregate:
 
 Usage:
     python transcriptomics/2_validate_predictions.py \
-        --conserved transcriptomics/2_DGE/2_4_model_fits/conserved_genes.tsv \
+        --conserved transcriptomics/results/model_fits/conserved_genes.tsv \
         --phenotype hepatocyte \
         --out transcriptomics/results/validation_results
 
