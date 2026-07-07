@@ -25,8 +25,6 @@ Usage:
 
 Dependencies: pyvista, trame (pip install pyvista trame trame-vtk trame-vuetify).
 For static export, pyvista with an off-screen backend is enough.
-
-Author: Daniel Pérez-Calixto (INMEGEN / UNAM)
 ================================================================================
 """
 
