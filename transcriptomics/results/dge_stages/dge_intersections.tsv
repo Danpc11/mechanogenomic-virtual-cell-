@@ -1,0 +1,10 @@
+set	n_genes
+genes_tested	16157
+lrt_reproduced	3381
+baseline_any	948
+strata_any	809
+baseline_and_strata	630
+baseline_only	318
+strata_only	179
+lrt_and_baseline	948
+lrt_and_strata	809
